@@ -1,10 +1,38 @@
+# Core Server
 fastapi
 uvicorn
-jinja2
+uvloop==0.21.0
+python-dotenv
 python-multipart
-yt-dlp
-psutil
+
+# Async & Networking
+aiohttp
 aiofiles
+httpx[http2]>=0.28.1
+
+# Media & Download
+yt-dlp
+ffmpeg-python
+pydub
+hachoir
+
+# Utilities
 cachetools
-websockets
-sqlite-utils
+apscheduler
+psutil
+requests
+wget
+pyyaml
+
+# Security / Hashing (لو مستخدم Auth)
+argon2
+
+# Optional (لو عندك API features)
+numpy
+opencv-python
+pillow>=12.0.0
+qrcode
+
+# Database (لو مستخدم Mongo)
+motor
+pymongo
