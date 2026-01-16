@@ -93,7 +93,7 @@ class SystemConfig:
     
     # Security
     ADMIN_USER = "admin"
-    ADMIN_PASS = "admin123"  # CHANGE THIS IN PRODUCTION
+    ADMIN_PASS = "asdfghjkl05896"  # <--- UPDATED PASSWORD
     JWT_SECRET = secrets.token_hex(32)
     RATE_LIMIT = 100  # Requests per minute
     
@@ -553,11 +553,13 @@ def verify_admin(credentials: HTTPBasicCredentials = Depends(security)):
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, user: str = Depends(verify_admin)):
     """Renders the Main Command Center"""
-    return templates.TemplateResponse("dashboard.html", {
+    # NOTE: LINKED TO interface.html AS REQUESTED
+    return templates.TemplateResponse("interface.html", {
         "request": request,
         "app_name": SystemConfig.APP_NAME,
         "version": SystemConfig.VERSION,
-        "host": SystemConfig.DOMAIN
+        "host": SystemConfig.DOMAIN,
+        "user": user
     })
 
 # --- API Routes ---
