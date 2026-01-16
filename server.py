@@ -2,14 +2,12 @@
 """
 #############################################################################
 #                                                                           #
-#   H Y P E R I O N   T I T A N I U M   C O R E   |   V 5 . 0 . 0           #
-#   ---------------------------------------------------------------         #
-#   Enterprise Grade Media Processing Unit & API Gateway                    #
-#   Architecture: Asynchronous / Event-Driven                               #
-#   Security: Level 4 (Rate Limit, IP Ban, API Keys)                        #
-#   Storage: SQLite3 + Local File System Cache                              #
+#         H Y P E R I O N   E N G I N E   |   P R O D U C T I O N           #
+#         -------------------------------------------------------           #
+#   High-Performance Media Streaming & Async Processing Architecture        #
 #                                                                           #
-#   (C) 2025 Hyperion Systems - All Rights Reserved                         #
+#   ➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ                                                #
+#   Status: Stable / Optimized / Non-Blocking                               #
 #                                                                           #
 #############################################################################
 """
@@ -19,355 +17,296 @@ import sys
 import time
 import json
 import uuid
-import shutil
-import asyncio
 import logging
-import sqlite3
+import asyncio
+import shutil
+import signal
+import socket
 import secrets
-import psutil
-import platform
-import subprocess
 import mimetypes
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Union
+import platform
+import threading
+from pathlib import Path
+from datetime import datetime
+from typing import Dict, Optional, List, Union, Generator, Tuple
 from concurrent.futures import ThreadPoolExecutor
-from logging.handlers import RotatingFileHandler
 
-# --- Third Party Imports ---
+# --- Third Party Libraries ---
+# pip install fastapi uvicorn yt-dlp psutil aiofiles jinja2 python-multipart
 import uvicorn
-import aiofiles
+import psutil
+from pydantic import BaseModel, Field
 from fastapi import (
-    FastAPI, Request, HTTPException, Form, Depends, 
-    UploadFile, File, BackgroundTasks, Header, Query, status
+    FastAPI, Request, HTTPException, BackgroundTasks, 
+    Form, Depends, Header, status
 )
 from fastapi.responses import (
-    HTMLResponse, JSONResponse, FileResponse, 
-    StreamingResponse, RedirectResponse
+    JSONResponse, StreamingResponse, HTMLResponse, 
+    FileResponse, RedirectResponse
 )
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from starlette.middleware.base import BaseHTTPMiddleware
 from yt_dlp import YoutubeDL
-from cachetools import TTLCache
 
 # ===========================================================================
-# [SECTION 1] SYSTEM CONFIGURATION & CONSTANTS
+# [SECTION 1] CONFIGURATION & ENVIRONMENT
 # ===========================================================================
 
-class SystemConfig:
-    """Global System Configuration"""
-    
-    # Identity
-    APP_NAME = "Hyperion Titanium"
-    VERSION = "5.0.0-Build2025"
-    BANNER = """
-    ██   ██ ██    ██ ██████  ███████ ██████  ██  ██████  ███    ██ 
-    ██   ██  ██  ██  ██   ██ ██      ██   ██ ██ ██    ██ ████   ██ 
-    ███████   ████   ██████  █████   ██████  ██ ██    ██ ██ ██  ██ 
-    ██   ██    ██    ██      ██      ██   ██ ██ ██    ██ ██  ██ ██ 
-    ██   ██    ██    ██      ███████ ██   ██ ██  ██████  ██   ████ 
+class AppConfig:
     """
+    Centralized Configuration Management.
+    Controls all aspects of the engine's behavior.
+    """
+    # Identity
+    APP_NAME: str = "Hyperion Media Engine"
+    VERSION: str = "6.2.0-Stable"
+    SOURCE_CREDIT: str = "➻ sᴏᴜʀᴄᴇ : بُودَا | ʙᴏᴅᴀ"
     
-    # Network
-    HOST = "0.0.0.0"
-    PORT = int(os.environ.get("PORT", 8080))
-    DOMAIN = os.environ.get("DOMAIN", f"http://localhost:{PORT}")
+    # Server Binding
+    HOST: str = "0.0.0.0"
+    PORT: int = int(os.getenv("PORT", 8080))
+    DOMAIN: str = os.getenv("DOMAIN", f"http://localhost:{PORT}")
     
-    # Paths
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    STORAGE_DIR = os.path.join(BASE_DIR, "storage")
-    DOWNLOADS_DIR = os.path.join(STORAGE_DIR, "downloads")
-    UPLOADS_DIR = os.path.join(STORAGE_DIR, "uploads")
-    THUMBNAILS_DIR = os.path.join(STORAGE_DIR, "thumbnails")
-    LOGS_DIR = os.path.join(BASE_DIR, "logs")
-    DB_PATH = os.path.join(BASE_DIR, "hyperion.sqlite")
-    TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
-    COOKIES_FILE = os.path.join(BASE_DIR, "cookies.txt")
+    # Concurrency & Performance
+    MAX_WORKERS: int = 16  # Max simultaneous downloads
+    EXECUTION_TIMEOUT: int = 600  # 10 Minutes max per job
+    STREAM_CHUNK_SIZE: int = 1024 * 1024 * 2  # 2MB chunks for streaming
     
-    # Performance
-    MAX_WORKERS = 16
-    CHUNK_SIZE = 1024 * 1024  # 1MB for streaming
-    CACHE_TTL = 3600  # 1 Hour
+    # Paths (Auto-generated)
+    BASE_DIR: Path = Path(__file__).resolve().parent
+    STORAGE_DIR: Path = BASE_DIR / "storage"
+    DOWNLOADS_DIR: Path = STORAGE_DIR / "downloads"
+    LOGS_DIR: Path = BASE_DIR / "logs"
+    TEMPLATES_DIR: Path = BASE_DIR / "templates"
     
-    # Security
-    ADMIN_USER = "admin"
-    ADMIN_PASS = "asdfghjkl05896"  # <--- UPDATED PASSWORD
-    JWT_SECRET = secrets.token_hex(32)
-    RATE_LIMIT = 100  # Requests per minute
+    # Cleanup Policy
+    FILE_RETENTION_SECONDS: int = 900  # 15 Minutes (Strict)
+    CLEANUP_INTERVAL: int = 60     # Run cleaner every 60s
     
-    # Media
-    SUPPORTED_FORMATS = ['mp3', 'mp4', 'm4a', 'webm', 'wav', 'flac']
+    # Network Optimization (DNS)
+    DNS_SERVERS: List[str] = ["1.1.1.1", "8.8.8.8"]
 
     @classmethod
-    def initialize_filesystem(cls):
-        """Creates necessary directory structure on startup"""
-        dirs = [
-            cls.STORAGE_DIR, cls.DOWNLOADS_DIR, cls.UPLOADS_DIR, 
-            cls.THUMBNAILS_DIR, cls.LOGS_DIR, cls.TEMPLATES_DIR
-        ]
-        for d in dirs:
-            os.makedirs(d, exist_ok=True)
+    def init_storage(cls):
+        """Ensure all required directories exist with correct permissions."""
+        for path in [cls.STORAGE_DIR, cls.DOWNLOADS_DIR, cls.LOGS_DIR, cls.TEMPLATES_DIR]:
+            path.mkdir(parents=True, exist_ok=True)
+            # On Linux/Unix, ensure write permissions
+            if os.name != 'nt':
+                try:
+                    os.chmod(path, 0o755)
+                except Exception:
+                    pass
 
-# Initialize System
-SystemConfig.initialize_filesystem()
-
-# ===========================================================================
-# [SECTION 2] ADVANCED LOGGING SYSTEM
-# ===========================================================================
-
-class ColorFormatter(logging.Formatter):
-    """Custom Log Formatter with ANSI Colors"""
-    
-    GREY = "\x1b[38;20m"
-    YELLOW = "\x1b[33;20m"
-    RED = "\x1b[31;20m"
-    BOLD_RED = "\x1b[31;1m"
-    BLUE = "\x1b[34;20m"
-    GREEN = "\x1b[32;20m"
-    RESET = "\x1b[0m"
-    FORMAT = "%(asctime)s | %(levelname)-8s | %(module)-10s | %(message)s"
-
-    FORMATS = {
-        logging.DEBUG: GREY + FORMAT + RESET,
-        logging.INFO: GREEN + FORMAT + RESET,
-        logging.WARNING: YELLOW + FORMAT + RESET,
-        logging.ERROR: RED + FORMAT + RESET,
-        logging.CRITICAL: BOLD_RED + FORMAT + RESET
-    }
-
-    def format(self, record):
-        log_fmt = self.FORMATS.get(record.levelno)
-        formatter = logging.Formatter(log_fmt, datefmt="%Y-%m-%d %H:%M:%S")
-        return formatter.format(record)
-
-def setup_logger():
-    logger = logging.getLogger("HyperionCore")
-    logger.setLevel(logging.DEBUG)
-    
-    # Console Handler
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
-    ch.setFormatter(ColorFormatter())
-    
-    # File Handler (Rotating)
-    fh = RotatingFileHandler(
-        os.path.join(SystemConfig.LOGS_DIR, "system.log"), 
-        maxBytes=5*1024*1024, 
-        backupCount=5
-    )
-    fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
-    
-    logger.addHandler(ch)
-    logger.addHandler(fh)
-    return logger
-
-LOGGER = setup_logger()
+AppConfig.init_storage()
 
 # ===========================================================================
-# [SECTION 3] DATABASE ENGINE (SQLite ORM)
+# [SECTION 2] ADVANCED LOGGING (THREAD-SAFE)
 # ===========================================================================
 
-class DatabaseManager:
-    """Handles all SQLite interactions securely"""
-    
-    def __init__(self, db_path: str):
-        self.db_path = db_path
-        self._init_tables()
+class ProductionLogger:
+    """
+    Thread-safe, colorful logger for production debugging.
+    """
+    RESET = "\033[0m"
+    RED = "\033[91m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    BLUE = "\033[94m"
+    CYAN = "\033[96m"
 
-    def _get_conn(self):
-        conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        return conn
-
-    def _init_tables(self):
-        conn = self._get_conn()
-        cursor = conn.cursor()
+    def __init__(self):
+        self.logger = logging.getLogger("HyperionCore")
+        self.logger.setLevel(logging.INFO)
         
-        # Table: API Keys
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS api_keys (
-                key TEXT PRIMARY KEY,
-                owner TEXT NOT NULL,
-                is_active BOOLEAN DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                permissions TEXT DEFAULT 'read,write'
-            )
-        ''')
-        
-        # Table: Download History
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS history (
-                id TEXT PRIMARY KEY,
-                title TEXT,
-                url TEXT,
-                media_type TEXT,
-                file_path TEXT,
-                file_size INTEGER,
-                duration INTEGER,
-                requester TEXT,
-                status TEXT,
-                download_speed TEXT,
-                completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # Table: System Events
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS system_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                level TEXT,
-                message TEXT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        conn.commit()
-        conn.close()
-
-    def create_api_key(self, owner: str) -> str:
-        new_key = f"hk_{secrets.token_hex(16)}"
-        conn = self._get_conn()
-        conn.execute("INSERT INTO api_keys (key, owner) VALUES (?, ?)", (new_key, owner))
-        conn.commit()
-        conn.close()
-        return new_key
-
-    def validate_key(self, key: str) -> bool:
-        conn = self._get_conn()
-        row = conn.execute("SELECT is_active FROM api_keys WHERE key = ?", (key,)).fetchone()
-        conn.close()
-        return True if row and row['is_active'] else False
-
-    def log_download(self, data: dict):
-        conn = self._get_conn()
-        conn.execute('''
-            INSERT INTO history (id, title, url, media_type, file_path, file_size, duration, requester, status, download_speed)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            data['id'], data['title'], data['url'], data['type'], data['path'], 
-            data['size'], data['duration'], data['requester'], data['status'], data['speed']
+        # File Handler
+        fh = logging.FileHandler(AppConfig.LOGS_DIR / "engine.log", encoding='utf-8')
+        fh.setFormatter(logging.Formatter(
+            '%(asctime)s | %(levelname)s | [%(threadName)s] | %(message)s'
         ))
-        conn.commit()
-        conn.close()
+        self.logger.addHandler(fh)
+        
+        # Console Handler
+        ch = logging.StreamHandler(sys.stdout)
+        ch.setFormatter(logging.Formatter('%(message)s'))
+        self.logger.addHandler(ch)
 
-    def get_history(self, limit=50):
-        conn = self._get_conn()
-        rows = conn.execute("SELECT * FROM history ORDER BY completed_at DESC LIMIT ?", (limit,)).fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
+    def info(self, msg: str):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.logger.info(f"{self.GREEN}[INFO]    {timestamp} | {msg}{self.RESET}")
 
-DB = DatabaseManager(SystemConfig.DB_PATH)
+    def warn(self, msg: str):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.logger.warning(f"{self.YELLOW}[WARNING] {timestamp} | {msg}{self.RESET}")
+
+    def error(self, msg: str):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.logger.error(f"{self.RED}[ERROR]   {timestamp} | {msg}{self.RESET}")
+
+    def debug(self, msg: str):
+        # Only enable if needed
+        # timestamp = datetime.now().strftime("%H:%M:%S")
+        # self.logger.debug(f"{self.CYAN}[DEBUG]   {timestamp} | {msg}{self.RESET}")
+        pass
+
+sys_logger = ProductionLogger()
 
 # ===========================================================================
-# [SECTION 4] JOB MANAGER (ASYNC WORKER POOL)
+# [SECTION 3] DATA MODELS (SCHEMAS)
+# ===========================================================================
+
+class DownloadRequest(BaseModel):
+    url: str = Field(..., description="The URL of the media to download")
+    type: str = Field("audio", description="audio or video")
+    requester: str = Field("API", description="Source of request")
+
+class JobStatus(BaseModel):
+    job_id: str
+    status: str
+    progress: float
+    speed: str
+    eta: str
+    filename: Optional[str] = None
+    download_url: Optional[str] = None
+    error: Optional[str] = None
+
+# ===========================================================================
+# [SECTION 4] CORE ENGINE: JOB MANAGEMENT
 # ===========================================================================
 
 class JobState:
-    PENDING = "PENDING"
-    DOWNLOADING = "DOWNLOADING"
-    PROCESSING = "PROCESSING"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
+    """Enum-like class for Job Statuses"""
+    QUEUED = "queued"
+    PROCESSING = "processing"
+    CONVERTING = "converting"
+    COMPLETED = "completed"
+    FAILED = "failed"
 
 class JobManager:
-    """Manages active download jobs in memory"""
-    
+    """
+    In-Memory State Manager.
+    Handles thread safety for concurrent reads/writes of job status.
+    """
     def __init__(self):
-        self.active_jobs: Dict[str, Dict[str, Any]] = {}
-        self.lock = asyncio.Lock()
+        self._jobs: Dict[str, Dict] = {}
+        self._lock = threading.Lock()
 
-    async def create_job(self, url: str, type: str, requester: str) -> str:
-        job_id = uuid.uuid4().hex[:10]
-        async with self.lock:
-            self.active_jobs[job_id] = {
+    def create_job(self, url: str, type: str, requester: str) -> str:
+        job_id = uuid.uuid4().hex
+        with self._lock:
+            self._jobs[job_id] = {
                 "id": job_id,
                 "url": url,
                 "type": type,
                 "requester": requester,
-                "status": JobState.PENDING,
-                "progress": 0.0,
-                "speed": "0 KiB/s",
-                "eta": "--:--",
-                "title": "Resolving metadata...",
+                "status": JobState.QUEUED,
+                "created_at": time.time(),
+                "progress": 0,
+                "speed": "N/A",
+                "eta": "Calculating...",
                 "filename": None,
-                "start_time": time.time(),
+                "filepath": None,
+                "filesize": 0,
                 "error": None
             }
         return job_id
 
-    async def update_job(self, job_id: str, **kwargs):
-        if job_id in self.active_jobs:
-            self.active_jobs[job_id].update(kwargs)
+    def update_job(self, job_id: str, **kwargs):
+        with self._lock:
+            if job_id in self._jobs:
+                self._jobs[job_id].update(kwargs)
+                if "status" in kwargs:
+                    # Update heartbeat or similar if needed
+                    pass
 
     def get_job(self, job_id: str) -> Optional[Dict]:
-        return self.active_jobs.get(job_id)
+        with self._lock:
+            return self._jobs.get(job_id, None).copy() if job_id in self._jobs else None
 
     def get_all_jobs(self) -> List[Dict]:
-        return list(self.active_jobs.values())
+        with self._lock:
+            return list(self._jobs.values())
 
-    async def cleanup(self):
-        """Removes old completed jobs from memory"""
-        now = time.time()
-        to_delete = []
-        for jid, job in self.active_jobs.items():
-            if job['status'] in [JobState.COMPLETED, JobState.FAILED]:
-                if now - job.get('end_time', now) > 300: # 5 Minutes retention
-                    to_delete.append(jid)
-        
-        for jid in to_delete:
-            del self.active_jobs[jid]
+    def cleanup_stale_jobs(self):
+        """Removes job metadata from memory (not files)"""
+        with self._lock:
+            now = time.time()
+            keys_to_remove = []
+            for jid, job in self._jobs.items():
+                # Keep completed jobs for a bit so client can query status
+                if job['status'] in [JobState.COMPLETED, JobState.FAILED]:
+                    if now - job.get('completed_at', now) > 600: # 10 mins memory retention
+                        keys_to_remove.append(jid)
+            
+            for k in keys_to_remove:
+                del self._jobs[k]
 
-JOB_MANAGER = JobManager()
+# Global Instance
+job_manager = JobManager()
 
 # ===========================================================================
-# [SECTION 5] MEDIA PROCESSING ENGINE (YT-DLP & FFMPEG)
+# [SECTION 5] DOWNLOAD ENGINE (YT-DLP WRAPPER)
 # ===========================================================================
 
-class MediaProcessor:
-    """Handles the heavy lifting of downloading and converting"""
-    
+class DownloadEngine:
+    """
+    The Heavy Lifter. Executes downloads in separate threads.
+    """
     def __init__(self):
-        self.executor = ThreadPoolExecutor(max_workers=SystemConfig.MAX_WORKERS)
+        self.executor = ThreadPoolExecutor(
+            max_workers=AppConfig.MAX_WORKERS, 
+            thread_name_prefix="HyperionWorker"
+        )
 
     def _progress_hook(self, d, job_id):
-        """Callback for yt-dlp to update job status"""
+        """Callback executed by yt-dlp during download"""
         if d['status'] == 'downloading':
             try:
-                p = d.get('_percent_str', '0%').replace('%', '')
-                asyncio.run_coroutine_threadsafe(
-                    JOB_MANAGER.update_job(
-                        job_id,
-                        status=JobState.DOWNLOADING,
-                        progress=float(p),
-                        speed=d.get('_speed_str', 'N/A'),
-                        eta=d.get('_eta_str', 'N/A')
-                    ),
-                    loop=asyncio.get_running_loop()
+                # Calculate percentage
+                total = d.get('total_bytes') or d.get('total_bytes_estimate', 0)
+                downloaded = d.get('downloaded_bytes', 0)
+                percent = (downloaded / total * 100) if total > 0 else 0
+                
+                # Update State
+                job_manager.update_job(
+                    job_id,
+                    status=JobState.PROCESSING,
+                    progress=round(percent, 2),
+                    speed=d.get('_speed_str', 'N/A'),
+                    eta=d.get('_eta_str', 'Wait...')
                 )
-            except:
-                pass
-        elif d['status'] == 'finished':
-            asyncio.run_coroutine_threadsafe(
-                JOB_MANAGER.update_job(job_id, status=JobState.PROCESSING, progress=99.0),
-                loop=asyncio.get_running_loop()
-            )
+            except Exception:
+                pass # Don't break download on progress error
 
-    def _get_ydl_opts(self, mode: str, output_path: str, job_id: str) -> dict:
+        elif d['status'] == 'finished':
+            job_manager.update_job(job_id, status=JobState.CONVERTING, progress=99.0)
+
+    def _get_optimized_opts(self, job_id: str, mode: str, output_template: str) -> dict:
+        """Returns the 'Production Grade' yt-dlp configuration"""
+        
+        # Base Options for Reliability
         opts = {
+            'outtmpl': output_template,
             'quiet': True,
             'no_warnings': True,
-            'geo_bypass': True,
             'nocheckcertificate': True,
             'ignoreerrors': True,
-            'socket_timeout': 30,
+            'geo_bypass': True,
+            'socket_timeout': 15,
+            'retries': 3,
             'progress_hooks': [lambda d: self._progress_hook(d, job_id)],
-            'outtmpl': output_path,
+            
+            # Speed Optimizations
+            'buffersize': 1024 * 1024,  # 1MB buffer
+            'http_chunk_size': 10485760, # 10MB chunks
+            'concurrent_fragment_downloads': 5, # Parallel fragments
         }
-        
-        if os.path.exists(SystemConfig.COOKIES_FILE):
-            opts['cookiefile'] = SystemConfig.COOKIES_FILE
+
+        # DNS Optimization (If possible via external args, usually OS dependent, 
+        # but here we ensure requests leverage fast resolution if library supports it)
+        # yt-dlp doesn't support setting DNS directly in python opts easily without 
+        # patching socket, so we rely on OS.
 
         if mode == "audio":
             opts.update({
@@ -379,6 +318,7 @@ class MediaProcessor:
                 }],
             })
         else:
+            # Smart format selection: Avoid re-encoding video if possible
             opts.update({
                 'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                 'merge_output_format': 'mp4'
@@ -386,333 +326,385 @@ class MediaProcessor:
             
         return opts
 
-    def _execute_download(self, url: str, mode: str, job_id: str, requester: str):
-        """Blocking function executed in thread"""
+    def _execute_job(self, job_id: str, url: str, mode: str):
+        """The function running inside the Worker Thread"""
+        sys_logger.info(f"Worker started for Job: {job_id} [{mode}]")
+        
         try:
-            # Prepare Path
-            filename_template = f"{job_id}"
-            out_tmpl = os.path.join(SystemConfig.DOWNLOADS_DIR, f"{filename_template}.%(ext)s")
+            # 1. Prepare Path
+            # We use job_id as filename to prevent collisions
+            filename_base = f"{job_id}"
+            out_tmpl = str(AppConfig.DOWNLOADS_DIR / f"{filename_base}.%(ext)s")
             
-            opts = self._get_ydl_opts(mode, out_tmpl, job_id)
+            # 2. Configure yt-dlp
+            opts = self._get_optimized_opts(job_id, mode, out_tmpl)
             
+            # 3. Execute
             with YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(url, download=True)
+                # Extract info first (fast)
+                info = ydl.extract_info(url, download=False)
                 
-                # Resolve final filename
-                ext = "mp3" if mode == "audio" else info.get("ext", "mp4")
-                final_path = os.path.join(SystemConfig.DOWNLOADS_DIR, f"{job_id}.{ext}")
+                # Sanitize Title (optional, but we serve by ID mostly)
+                clean_title = info.get('title', 'media')
                 
-                # Fallback check
-                if not os.path.exists(final_path):
-                    # Try finding it
-                    for f in os.listdir(SystemConfig.DOWNLOADS_DIR):
-                        if f.startswith(job_id):
-                            final_path = os.path.join(SystemConfig.DOWNLOADS_DIR, f)
-                            break
+                # Download
+                ydl.download([url])
                 
-                file_size = os.path.getsize(final_path) if os.path.exists(final_path) else 0
+                # 4. Resolve Final File
+                # yt-dlp might change extension (webm -> mp3, etc)
+                final_filename = None
+                final_path = None
                 
-                # Update Job to Completed
-                job_data = {
-                    "status": JobState.COMPLETED,
-                    "progress": 100.0,
-                    "title": info.get("title", "Unknown"),
-                    "filename": os.path.basename(final_path),
-                    "file_path": final_path,
-                    "file_size_bytes": file_size,
-                    "duration": info.get("duration"),
-                    "thumbnail": info.get("thumbnail"),
-                    "end_time": time.time()
-                }
+                # Scan directory for the file starting with job_id
+                # This is more robust than guessing extension
+                for f in os.listdir(AppConfig.DOWNLOADS_DIR):
+                    if f.startswith(job_id):
+                        final_filename = f
+                        final_path = AppConfig.DOWNLOADS_DIR / f
+                        break
                 
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(JOB_MANAGER.update_job(job_id, **job_data))
-                
-                # Log to DB
-                DB.log_download({
-                    "id": job_id, "title": info.get("title"), "url": url, 
-                    "type": mode, "path": final_path, "size": file_size,
-                    "duration": info.get("duration"), "requester": requester,
-                    "status": "SUCCESS", "speed": "FAST"
-                })
-                
+                if not final_path or not final_path.exists():
+                    raise FileNotFoundError("Output file not found after download")
+
+                # 5. Validation (0KB Check)
+                if final_path.stat().st_size < 1024:
+                    raise Exception("Downloaded file is empty (Corruption detected)")
+
+                # 6. Success
+                job_manager.update_job(
+                    job_id,
+                    status=JobState.COMPLETED,
+                    progress=100.0,
+                    filename=final_filename,
+                    filepath=str(final_path),
+                    filesize=final_path.stat().st_size,
+                    eta="00:00",
+                    completed_at=time.time()
+                )
+                sys_logger.info(f"Job {job_id} Completed Successfully.")
+
         except Exception as e:
-            LOGGER.error(f"Job {job_id} Failed: {e}")
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(JOB_MANAGER.update_job(job_id, status=JobState.FAILED, error=str(e)))
+            sys_logger.error(f"Job {job_id} Failed: {str(e)}")
+            job_manager.update_job(
+                job_id,
+                status=JobState.FAILED,
+                error=str(e),
+                completed_at=time.time()
+            )
 
-    async def start_process(self, url: str, mode: str, requester: str) -> str:
-        job_id = await JOB_MANAGER.create_job(url, mode, requester)
-        loop = asyncio.get_running_loop()
-        loop.run_in_executor(self.executor, self._execute_download, url, mode, job_id, requester)
-        return job_id
+    def submit(self, job_id: str, url: str, mode: str):
+        """Submit task to thread pool (Non-Blocking)"""
+        self.executor.submit(self._execute_job, job_id, url, mode)
 
-ENGINE = MediaProcessor()
+engine = DownloadEngine()
 
 # ===========================================================================
-# [SECTION 6] BACKGROUND SERVICES & MONITORING
+# [SECTION 6] BACKGROUND SERVICES (CLEANER)
 # ===========================================================================
 
-async def system_monitor_task():
-    """Periodically logs system health stats"""
-    while True:
-        cpu = psutil.cpu_percent()
-        ram = psutil.virtual_memory().percent
-        disk = psutil.disk_usage('/').percent
-        active_jobs = len([j for j in JOB_MANAGER.get_all_jobs() if j['status'] == JobState.DOWNLOADING])
-        
-        if cpu > 80 or ram > 90:
-            LOGGER.warning(f"HIGH LOAD DETECTED: CPU {cpu}% | RAM {ram}%")
-        
-        await JOB_MANAGER.cleanup()
-        await asyncio.sleep(5)
+class SystemServices:
+    
+    @staticmethod
+    def start_scheduler():
+        """Starts the background cleanup thread"""
+        t = threading.Thread(target=SystemServices._cleanup_loop, daemon=True)
+        t.start()
+        sys_logger.info("Auto-Cleanup Scheduler Started.")
 
-async def auto_cleaner_task():
-    """Deletes old files to save space"""
-    while True:
-        try:
-            now = time.time()
-            cutoff = now - SystemConfig.CACHE_TTL
+    @staticmethod
+    def _cleanup_loop():
+        while True:
+            try:
+                now = time.time()
+                retention = AppConfig.FILE_RETENTION_SECONDS
+                
+                # Iterate over files in downloads dir
+                for file_path in AppConfig.DOWNLOADS_DIR.glob("*"):
+                    if file_path.is_file():
+                        # check modification time
+                        if now - file_path.stat().st_mtime > retention:
+                            try:
+                                file_path.unlink() # Delete
+                                sys_logger.info(f"Cleaned up expired file: {file_path.name}")
+                            except Exception as e:
+                                sys_logger.warn(f"Failed to delete {file_path.name}: {e}")
+                
+                # Cleanup Memory
+                job_manager.cleanup_stale_jobs()
+                
+            except Exception as e:
+                sys_logger.error(f"Scheduler Error: {e}")
             
-            # Clean Downloads
-            for f in os.listdir(SystemConfig.DOWNLOADS_DIR):
-                fpath = os.path.join(SystemConfig.DOWNLOADS_DIR, f)
-                if os.path.isfile(fpath) and os.stat(fpath).st_mtime < cutoff:
-                    os.remove(fpath)
-                    LOGGER.info(f"Auto-Cleaner: Removed {f}")
-                    
-        except Exception as e:
-            LOGGER.error(f"Cleaner Error: {e}")
-            
-        await asyncio.sleep(600)
+            time.sleep(AppConfig.CLEANUP_INTERVAL)
 
 # ===========================================================================
 # [SECTION 7] API APPLICATION & MIDDLEWARE
 # ===========================================================================
 
 app = FastAPI(
-    title=SystemConfig.APP_NAME,
-    version=SystemConfig.VERSION,
-    description="Enterprise Media Processing Gateway",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc"
+    title=AppConfig.APP_NAME,
+    version=AppConfig.VERSION,
+    description="Enterprise Grade Asynchronous Media Downloader",
+    docs_url="/docs",
+    redoc_url=None
 )
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Static Mounts
-app.mount("/downloads", StaticFiles(directory=SystemConfig.DOWNLOADS_DIR), name="downloads")
-app.mount("/uploads", StaticFiles(directory=SystemConfig.UPLOADS_DIR), name="uploads")
-templates = Jinja2Templates(directory=SystemConfig.TEMPLATES_DIR)
-security = HTTPBasic()
+# Template Engine
+templates = Jinja2Templates(directory=str(AppConfig.TEMPLATES_DIR))
 
-# Middleware for Rate Limiting (Simple)
-class SecurityMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        # Basic security headers
-        response = await call_next(request)
-        response.headers["X-Powered-By"] = "Hyperion Titanium"
-        response.headers["X-Frame-Options"] = "DENY"
-        return response
+# --- Utils for Streaming ---
 
-app.add_middleware(SecurityMiddleware)
+def is_safe_path(filename: str) -> bool:
+    """Path traversal protection"""
+    safe_path = AppConfig.DOWNLOADS_DIR / filename
+    try:
+        return safe_path.resolve().parent == AppConfig.DOWNLOADS_DIR.resolve()
+    except:
+        return False
+
+def range_stream_response(file_path: Path, range_header: str):
+    """
+    Advanced Generator for Range Requests.
+    Enables seeking in video players (Telegram/Browser).
+    """
+    file_size = file_path.stat().st_size
+    start, end = 0, file_size - 1
+
+    # Parse Range Header (bytes=0-1024)
+    if range_header:
+        try:
+            range_val = range_header.replace("bytes=", "").split("-")
+            start = int(range_val[0]) if range_val[0] else 0
+            end = int(range_val[1]) if range_val[1] else file_size - 1
+        except ValueError:
+            pass # Fallback to full file
+
+    # Clamp logic
+    if start >= file_size: start = file_size - 1
+    if end >= file_size: end = file_size - 1
+    
+    chunk_length = (end - start) + 1
+    
+    def file_iterator(fpath, offset, length):
+        with open(fpath, "rb") as f:
+            f.seek(offset)
+            remaining = length
+            while remaining > 0:
+                chunk_size = min(AppConfig.STREAM_CHUNK_SIZE, remaining)
+                data = f.read(chunk_size)
+                if not data:
+                    break
+                remaining -= len(data)
+                yield data
+
+    # Detect MIME
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if not mime_type: mime_type = "application/octet-stream"
+
+    headers = {
+        "Content-Range": f"bytes {start}-{end}/{file_size}",
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(chunk_length),
+        "Cache-Control": "no-cache",
+        "X-Source-Credit": AppConfig.SOURCE_CREDIT
+    }
+
+    return StreamingResponse(
+        file_iterator(file_path, start, chunk_length),
+        status_code=status.HTTP_206_PARTIAL_CONTENT,
+        headers=headers,
+        media_type=mime_type
+    )
+
+# ===========================================================================
+# [SECTION 8] ENDPOINTS (CONTROLLERS)
+# ===========================================================================
 
 @app.on_event("startup")
 async def startup_event():
-    LOGGER.info(SystemConfig.BANNER)
-    LOGGER.info(f"System Initialized on Port {SystemConfig.PORT}")
-    asyncio.create_task(system_monitor_task())
-    asyncio.create_task(auto_cleaner_task())
-
-# --- Auth Dependency ---
-def verify_admin(credentials: HTTPBasicCredentials = Depends(security)):
-    if not (secrets.compare_digest(credentials.username, SystemConfig.ADMIN_USER) and 
-            secrets.compare_digest(credentials.password, SystemConfig.ADMIN_PASS)):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Basic"},
-        )
-    return credentials.username
-
-# ===========================================================================
-# [SECTION 8] ENDPOINTS (THE BRAIN)
-# ===========================================================================
-
-# --- Frontend Routes ---
+    sys_logger.info(f"--- {AppConfig.APP_NAME} v{AppConfig.VERSION} Starting ---")
+    sys_logger.info(AppConfig.SOURCE_CREDIT)
+    SystemServices.start_scheduler()
 
 @app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request, user: str = Depends(verify_admin)):
-    """Renders the Main Command Center"""
-    # NOTE: LINKED TO interface.html AS REQUESTED
-    return templates.TemplateResponse("interface.html", {
-        "request": request,
-        "app_name": SystemConfig.APP_NAME,
-        "version": SystemConfig.VERSION,
-        "host": SystemConfig.DOMAIN,
-        "user": user
-    })
+async def home(request: Request):
+    """Admin Dashboard Interface"""
+    # Simple embedded dashboard for diagnostics
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <title>{AppConfig.APP_NAME}</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body {{ font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }}
+            .card {{ background: #1e293b; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #334155; }}
+            h1 {{ color: #38bdf8; }}
+            .status-badge {{ padding: 4px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; }}
+            .status-queued {{ background: #f59e0b; color: #000; }}
+            .status-processing {{ background: #3b82f6; color: #fff; }}
+            .status-completed {{ background: #22c55e; color: #fff; }}
+            .status-failed {{ background: #ef4444; color: #fff; }}
+            code {{ background: #000; padding: 2px 5px; border-radius: 3px; font-family: monospace; color: #22c55e; }}
+        </style>
+        <script>
+            async function fetchJobs() {{
+                const res = await fetch('/api/v1/debug/jobs');
+                const data = await res.json();
+                const container = document.getElementById('jobs-container');
+                container.innerHTML = '';
+                data.forEach(job => {{
+                    const div = document.createElement('div');
+                    div.className = 'card';
+                    div.innerHTML = `
+                        <h3>Job: ${{job.id}} <span class="status-badge status-${{job.status}}">${{job.status}}</span></h3>
+                        <p>Type: ${{job.type}} | Progress: ${{job.progress}}% | Speed: ${{job.speed}}</p>
+                        <p><small>${{job.url}}</small></p>
+                        ${{job.error ? `<p style="color:red">Error: ${{job.error}}</p>` : ''}}
+                    `;
+                    container.appendChild(div);
+                }});
+            }}
+            setInterval(fetchJobs, 2000);
+        </script>
+    </head>
+    <body>
+        <div class="card">
+            <h1>{AppConfig.APP_NAME}</h1>
+            <p>{AppConfig.SOURCE_CREDIT}</p>
+            <p>System Status: 🟢 Operational</p>
+            <p>Active Threads: <code>{threading.active_count()}</code></p>
+        </div>
+        <h2>Active Jobs</h2>
+        <div id="jobs-container"></div>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
 
-# --- API Routes ---
-
-@app.get("/api/v1/health")
-async def health_check():
-    return {
-        "status": "operational",
-        "cpu": psutil.cpu_percent(),
-        "ram": psutil.virtual_memory().percent,
-        "uptime": time.time() - psutil.boot_time(),
-        "active_jobs": len(JOB_MANAGER.active_jobs)
-    }
-
-@app.post("/api/v1/download")
-async def start_download(
-    url: str = Form(...),
-    type: str = Form("audio"), # audio or video
-    requester: str = Form("Bot"),
-    api_key: Optional[str] = Form(None)
+@app.post("/api/v1/download", status_code=202)
+async def enqueue_download(
+    url: str = Form(...), 
+    type: str = Form("audio"),
+    requester: str = Form("TelegramBot")
 ):
     """
-    Initiates a download job.
-    Returns: job_id to track progress.
+    ENDPOINT 1: Initialize Download (Non-Blocking).
+    Returns Job ID immediately.
     """
-    # Optional: Verify API Key if strictly required
-    # if not DB.validate_key(api_key): raise HTTPException(403, "Invalid Key")
+    # 1. Validation
+    if not url.startswith("http"):
+        raise HTTPException(400, "Invalid URL")
     
-    job_id = await ENGINE.start_process(url, type, requester)
+    if type not in ["audio", "video"]:
+        type = "audio"
+
+    # 2. Create Job
+    job_id = job_manager.create_job(url, type, requester)
+    
+    # 3. Spawn Thread (Fire & Forget)
+    engine.submit(job_id, url, type)
+    
+    sys_logger.info(f"API Request: Enqueued {url} as {job_id}")
+
     return {
-        "status": "accepted",
+        "status": "queued",
         "job_id": job_id,
-        "monitor_url": f"{SystemConfig.DOMAIN}/api/v1/status/{job_id}"
+        "message": "Download started in background",
+        "check_status": f"{AppConfig.DOMAIN}/api/v1/status/{job_id}"
     }
 
 @app.get("/api/v1/status/{job_id}")
-async def get_job_status(job_id: str):
+async def check_status(job_id: str):
     """
-    Long-polling compatible status check.
+    ENDPOINT 2: Poll Status.
+    Returns JSON with progress or final download link.
     """
-    job = JOB_MANAGER.get_job(job_id)
+    job = job_manager.get_job(job_id)
     if not job:
-        # Check if it was archived in DB
-        return JSONResponse({"status": "not_found", "message": "Job expired or invalid"}, status_code=404)
+        raise HTTPException(404, "Job ID not found or expired")
     
     response = {
         "id": job['id'],
         "status": job['status'],
         "progress": job['progress'],
         "speed": job['speed'],
-        "eta": job['eta'],
-        "title": job['title']
+        "eta": job['eta']
     }
     
     if job['status'] == JobState.COMPLETED:
-        response.update({
-            "download_url": f"{SystemConfig.DOMAIN}/downloads/{job['filename']}",
-            "stream_url": f"{SystemConfig.DOMAIN}/stream/{job['filename']}",
-            "file_size": job.get('file_size_bytes'),
-            "duration": job.get('duration')
-        })
+        response['download_url'] = f"{AppConfig.DOMAIN}/api/v1/file/{job['filename']}"
+        response['file_size'] = job.get('filesize')
+        response['file_size_mb'] = round(job.get('filesize', 0) / (1024*1024), 2)
+        
+    if job['status'] == JobState.FAILED:
+        response['error'] = job.get('error')
         
     return response
 
-@app.get("/api/v1/jobs")
-async def list_active_jobs():
-    """Returns all active tasks for the dashboard"""
-    return JOB_MANAGER.get_all_jobs()
-
-@app.get("/api/v1/history")
-async def get_history_log():
-    """Returns past downloads from DB"""
-    return DB.get_history()
-
-@app.get("/stream/{filename}")
-async def stream_file(filename: str, request: Request):
+@app.get("/api/v1/file/{filename}")
+async def serve_file(filename: str, request: Request):
     """
-    High-Performance Media Streamer with Range Support.
-    Allows seeking (scrubbing) in video player.
+    ENDPOINT 3: High-Performance File Delivery.
+    Supports Range Headers for Scrubbing.
     """
-    file_path = os.path.join(SystemConfig.DOWNLOADS_DIR, filename)
+    # Security Check
+    if not is_safe_path(filename):
+        raise HTTPException(403, "Access Denied")
     
-    if not os.path.exists(file_path):
-        raise HTTPException(404, "File not found")
-        
-    file_size = os.path.getsize(file_path)
+    file_path = AppConfig.DOWNLOADS_DIR / filename
+    
+    if not file_path.exists():
+        raise HTTPException(404, "File not found or deleted by cleanup")
+    
+    # Check Range Header
     range_header = request.headers.get("range")
     
-    # Determine MIME
-    mime_type, _ = mimetypes.guess_type(file_path)
-    if not mime_type:
-        mime_type = "application/octet-stream"
-
     if range_header:
-        byte1, byte2 = 0, None
-        match = range_header.replace("bytes=", "").split("-")
-        if match[0]: byte1 = int(match[0])
-        if match[1]: byte2 = int(match[1])
-        
-        if byte2 is None: byte2 = file_size - 1
-        
-        length = byte2 - byte1 + 1
-        
-        def iterfile():
-            with open(file_path, "rb") as f:
-                f.seek(byte1)
-                yield f.read(length)
-                
-        headers = {
-            "Content-Range": f"bytes {byte1}-{byte2}/{file_size}",
-            "Accept-Ranges": "bytes",
-            "Content-Length": str(length)
-        }
-        return StreamingResponse(iterfile(), status_code=206, headers=headers, media_type=mime_type)
-    
-    return FileResponse(file_path, media_type=mime_type)
+        # Return Streaming Response (206)
+        return range_stream_response(file_path, range_header)
+    else:
+        # Standard File Response (200) - For direct downloads
+        return FileResponse(
+            file_path, 
+            headers={"X-Source-Credit": AppConfig.SOURCE_CREDIT}
+        )
 
-@app.post("/api/v1/admin/generate_key")
-async def generate_api_key(admin: str = Depends(verify_admin)):
-    key = DB.create_api_key("Admin_Generated")
-    return {"status": "created", "key": key}
-
-@app.get("/api/v1/sysinfo")
-async def system_info(admin: str = Depends(verify_admin)):
-    """Deep system diagnostics"""
-    return {
-        "platform": platform.platform(),
-        "python_version": sys.version,
-        "cpu_cores": psutil.cpu_count(),
-        "cpu_freq": psutil.cpu_freq().current,
-        "ram_total": psutil.virtual_memory().total,
-        "ram_available": psutil.virtual_memory().available,
-        "disk_usage": psutil.disk_usage('/').percent,
-        "network_sent": psutil.net_io_counters().bytes_sent,
-        "network_recv": psutil.net_io_counters().bytes_recv
-    }
+@app.get("/api/v1/debug/jobs")
+async def debug_jobs():
+    """Internal Endpoint for Dashboard"""
+    return job_manager.get_all_jobs()
 
 # ===========================================================================
-# [SECTION 9] EXECUTION ENTRY POINT
+# [SECTION 9] EXECUTION
 # ===========================================================================
 
 if __name__ == "__main__":
-    # Ensure color support in Windows consoles
-    os.system("") 
+    # Ensure UTF-8 in Windows Terminals
+    if sys.platform == "win32":
+        os.system("chcp 65001")
     
-    print(SystemConfig.BANNER)
-    print(f"\x1b[32m[SYSTEM] Starting Hyperion Engine on {SystemConfig.HOST}:{SystemConfig.PORT}\x1b[0m")
-    print(f"\x1b[33m[STORAGE] Downloads: {SystemConfig.DOWNLOADS_DIR}\x1b[0m")
+    print(f"\n{ProductionLogger.GREEN}" + "="*60)
+    print(f"   HYPERION MEDIA ENGINE | {AppConfig.VERSION}")
+    print(f"   {AppConfig.SOURCE_CREDIT}")
+    print(f"   Storage: {AppConfig.DOWNLOADS_DIR}")
+    print("="*60 + f"{ProductionLogger.RESET}\n")
     
+    # Run Uvicorn with optimized settings
     uvicorn.run(
-        "server:app",
-        host=SystemConfig.HOST,
-        port=SystemConfig.PORT,
-        workers=1, # One worker for async stability with shared memory
-        log_level="warning" # We use our own logger
+        "app:app",
+        host=AppConfig.HOST,
+        port=AppConfig.PORT,
+        reload=False,         # False for production
+        workers=1,            # 1 Worker + ThreadPool is best for this specific logic
+        log_level="warning",  # We use our own logger
+        access_log=False
     )
