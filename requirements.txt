@@ -1,11 +1,10 @@
 fastapi
 uvicorn
 jinja2
+python-multipart
 yt-dlp
 psutil
-python-multipart
-requests
 aiofiles
-ujson
 cachetools
-async-timeout
+websockets
+sqlite-utils
