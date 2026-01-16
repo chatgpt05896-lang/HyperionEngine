@@ -1,0 +1,19 @@
+# استبدل الاسم ده باسم التطبيق بتاعك على Fly.io
+app = "اسم-تطبيقك-هنا"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false   # خليناها false عشان السيرفر ميفصلش لو مفيش ضغط
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512  # 512 ميجا كافية جداً للسيرفر ده
