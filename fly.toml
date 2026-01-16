@@ -1,5 +1,5 @@
 # استبدل الاسم ده باسم التطبيق بتاعك على Fly.io
-app = "اسم-تطبيقك-هنا"
+app = "hyperionengine"
 primary_region = "fra"
 
 [build]
