@@ -1,542 +1,626 @@
-# server.py
-# Hyper-Tube X — متكامل: FastAPI + yt-dlp(aria2c) + WebSocket + Streaming Range + Search cache
-# التعليقات باللغة العربية لتسهيل الفهم
-# تشغيل محلي: export PORT=8080 && uvicorn server:app --host 0.0.0.0 --port $PORT --loop uvloop
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
-from __future__ import annotations
+"""
+################################################################################
+#                                                                              #
+#    HYPERION TITANIUM SERVER - v11.0 (SECURE CORE)                            #
+#    ARCHITECTURE: MONOLITHIC ASYNC SERVER                                     #
+#    AUTH: ENABLED (BASIC HTTP)                                                #
+#    DATABASE: SQLITE3 EMBEDDED                                                #
+#                                                                              #
+#    [WARNING]: THIS IS A PRODUCTION-GRADE SCRIPT.                             #
+#    IT HANDLES THREADING, I/O BOUND TASKS, AND MEMORY MANAGEMENT.             #
+#                                                                              #
+################################################################################
+"""
 
 import os
+import sys
 import time
 import json
+import uuid
+import shutil
+import psutil
+import socket
 import logging
-import traceback
+import sqlite3
+import secrets
 import asyncio
-from typing import Dict, Any, Optional, List, Tuple
-from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor
-from uuid import uuid4
+import hashlib
 import threading
+import requests
+import uvicorn
+import traceback
+from pathlib import Path
+from typing import Dict, List, Optional, Any, Tuple
+from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
+from abc import ABC, abstractmethod
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, status
-from fastapi.responses import FileResponse, StreamingResponse, HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.templating import Jinja2Templates
-
-# Optional libs - تأكد من تثبيت yt-dlp و psutil في requirements
+# --- DEPENDENCY INJECTION CHECK ---
 try:
-    import yt_dlp as yt_dlp_module
-except Exception:
-    yt_dlp_module = None
+    from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks, Depends, status
+    from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+    from fastapi.security import HTTPBasic, HTTPBasicCredentials
+    from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.templating import Jinja2Templates
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+    import yt_dlp
+except ImportError as e:
+    print(f"CRITICAL ERROR: Missing Dependency -> {e}")
+    print("INSTALL: pip install fastapi uvicorn yt-dlp requests psutil aiofiles")
+    sys.exit(1)
 
-try:
-    import psutil
-except Exception:
-    psutil = None
+# ==============================================================================
+# [MODULE 1] SYSTEM CONFIGURATION & CONSTANTS
+# ==============================================================================
 
-# -------------------------
-# إعدادات المسارات والبيئة
-# -------------------------
-BASE_DIR = Path(__file__).resolve().parent
-TEMPLATES_DIR = BASE_DIR / "templates"
-DOWNLOADS_DIR = BASE_DIR / "downloads"
-COOKIES_FILE = BASE_DIR / "cookies.txt"  # المستخدم قال أنه رفعه
+class SystemConfig:
+    """Central Configuration Hub"""
+    APP_NAME = "Hyperion Titanium"
+    VERSION = "11.0.0-Secure"
+    
+    # Paths
+    BASE_DIR = Path(__file__).resolve().parent
+    DOWNLOAD_DIR = BASE_DIR / "downloads"
+    CACHE_DIR = BASE_DIR / "cache"
+    LOGS_DIR = BASE_DIR / "logs"
+    TEMPLATES_DIR = BASE_DIR / "templates"
+    STATIC_DIR = BASE_DIR / "static"
+    DB_FILE = BASE_DIR / "hyperion_core.db"
+    COOKIES_FILE = BASE_DIR / "cookies.txt"
+    
+    # External Config
+    COOKIES_URL = "https://batbin.me/raw/reingress"
+    TEMPLATE_INDEX = "index.html"
+    
+    # Authentication (As Requested)
+    AUTH_USER = "admin"
+    AUTH_PASS = "asdfghjkl05896"
+    
+    # Performance Limits
+    MAX_WORKERS = 8           # Thread Pool Size
+    MAX_QUEUE = 100           # Max concurrent tasks
+    MAX_DISK_USAGE = 85.0     # Percentage
+    CLEANUP_AGE_SEC = 3600    # Delete files older than 1 hour
 
-os.makedirs(DOWNLOADS_DIR, exist_ok=True)
-os.makedirs(TEMPLATES_DIR, exist_ok=True)
+    @classmethod
+    def initialize_filesystem(cls):
+        """Creates necessary directory structures"""
+        dirs = [cls.DOWNLOAD_DIR, cls.CACHE_DIR, cls.LOGS_DIR, cls.TEMPLATES_DIR, cls.STATIC_DIR]
+        for d in dirs:
+            try:
+                d.mkdir(parents=True, exist_ok=True)
+            except Exception as e:
+                print(f"FS ERROR: Could not create {d} -> {e}")
+                sys.exit(1)
 
-# Logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("hyper-tube-x")
+SystemConfig.initialize_filesystem()
 
-# FastAPI app
-app = FastAPI(title="Hyper-Tube X")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # في الإنتاج قم بتقييد النطاقات
-    allow_methods=["*"],
-    allow_headers=["*"],
-    allow_credentials=True,
-)
+# ==============================================================================
+# [MODULE 2] LOGGING & DIAGNOSTICS
+# ==============================================================================
 
-# Static & templates
-STATIC_DIR = BASE_DIR / "static"
-if STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-
-
-# -------------------------
-# WebSocket manager
-# -------------------------
-class WSManager:
+class Logger:
+    """Advanced Logging Wrapper"""
     def __init__(self):
-        self._conns: Dict[str, WebSocket] = {}
-        self._locks: Dict[str, asyncio.Lock] = {}
+        self.logger = logging.getLogger("HyperionCore")
+        self.logger.setLevel(logging.DEBUG)
+        
+        formatter = logging.Formatter(
+            '%(asctime)s | %(levelname)-8s | %(threadName)s | %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        
+        # File Handler
+        fh = logging.FileHandler(SystemConfig.LOGS_DIR / "server.log", encoding='utf-8')
+        fh.setFormatter(formatter)
+        
+        # Stream Handler
+        sh = logging.StreamHandler(sys.stdout)
+        sh.setFormatter(formatter)
+        
+        self.logger.addHandler(fh)
+        self.logger.addHandler(sh)
 
-    async def connect(self, client_id: str, ws: WebSocket):
-        await ws.accept()
-        self._conns[client_id] = ws
-        self._locks[client_id] = asyncio.Lock()
-        logger.info(f"WS connected: {client_id}")
+    def info(self, msg): self.logger.info(msg)
+    def warning(self, msg): self.logger.warning(msg)
+    def error(self, msg): self.logger.error(msg)
+    def debug(self, msg): self.logger.debug(msg)
+    def critical(self, msg): self.logger.critical(msg)
+
+log = Logger()
+
+# ==============================================================================
+# [MODULE 3] PERSISTENT STORAGE (DATABASE)
+# ==============================================================================
+
+class DatabaseManager:
+    """Thread-safe SQLite Wrapper"""
+    
+    def __init__(self, db_path: Path):
+        self.db_path = str(db_path)
+        self._bootstrap()
+
+    def _get_conn(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def _bootstrap(self):
+        """Create Tables if not exist"""
+        schema = """
+        CREATE TABLE IF NOT EXISTS downloads (
+            id TEXT PRIMARY KEY,
+            client_id TEXT NOT NULL,
+            url TEXT NOT NULL,
+            title TEXT,
+            status TEXT DEFAULT 'pending',
+            progress REAL DEFAULT 0.0,
+            filepath TEXT,
+            speed TEXT,
+            error_log TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_type TEXT,
+            details TEXT,
+            ip_address TEXT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+        try:
+            with self._get_conn() as conn:
+                conn.executescript(schema)
+            log.info("Database Schema Validated.")
+        except Exception as e:
+            log.critical(f"Database Bootstrap Failed: {e}")
+
+    def create_task(self, task_id: str, client_id: str, url: str):
+        with self._get_conn() as conn:
+            conn.execute(
+                "INSERT INTO downloads (id, client_id, url) VALUES (?, ?, ?)",
+                (task_id, client_id, url)
+            )
+
+    def update_task(self, task_id: str, **kwargs):
+        """Dynamic Update Query Builder"""
+        if not kwargs: return
+        set_clause = ", ".join([f"{k} = ?" for k in kwargs.keys()])
+        values = list(kwargs.values()) + [task_id]
+        with self._get_conn() as conn:
+            conn.execute(f"UPDATE downloads SET {set_clause}, updated_at=CURRENT_TIMESTAMP WHERE id = ?", values)
+
+    def get_task(self, task_id: str) -> Optional[dict]:
+        with self._get_conn() as conn:
+            cur = conn.execute("SELECT * FROM downloads WHERE id = ?", (task_id,))
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+    def log_event(self, event_type: str, details: str, ip: str = "SYSTEM"):
+        with self._get_conn() as conn:
+            conn.execute(
+                "INSERT INTO audit_log (event_type, details, ip_address) VALUES (?, ?, ?)",
+                (event_type, details, ip)
+            )
+
+db = DatabaseManager(SystemConfig.DB_FILE)
+
+# ==============================================================================
+# [MODULE 4] SECURITY & AUTHENTICATION
+# ==============================================================================
+
+class SecurityModule:
+    """Handles Authentication and Protection"""
+    security = HTTPBasic()
+
+    @staticmethod
+    def verify_auth(credentials: HTTPBasicCredentials = Depends(security)):
+        """Dependency for route protection"""
+        correct_user = secrets.compare_digest(credentials.username, SystemConfig.AUTH_USER)
+        correct_pass = secrets.compare_digest(credentials.password, SystemConfig.AUTH_PASS)
+        
+        if not (correct_user and correct_pass):
+            db.log_event("AUTH_FAIL", f"Failed login attempt for user: {credentials.username}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid Credentials",
+                headers={"WWW-Authenticate": "Basic"},
+            )
+        return credentials.username
+
+# ==============================================================================
+# [MODULE 5] SYSTEM HEALTH & MAINTENANCE
+# ==============================================================================
+
+class StorageGuardian:
+    """Monitors Disk Usage and Cleans up"""
+    
+    @staticmethod
+    async def run_cleanup_loop():
+        """Background Daemon"""
+        while True:
+            try:
+                StorageGuardian._check_disk_space()
+                StorageGuardian._purge_old_files()
+            except Exception as e:
+                log.error(f"Cleanup Error: {e}")
+            await asyncio.sleep(600) # Check every 10 mins
+
+    @staticmethod
+    def _check_disk_space():
+        usage = psutil.disk_usage(SystemConfig.BASE_DIR)
+        if usage.percent > SystemConfig.MAX_DISK_USAGE:
+            log.warning(f"Disk Critical ({usage.percent}%)! Triggering emergency purge.")
+            StorageGuardian._purge_old_files(force=True)
+
+    @staticmethod
+    def _purge_old_files(force=False):
+        now = time.time()
+        age_limit = 600 if force else SystemConfig.CLEANUP_AGE_SEC
+        
+        for f in SystemConfig.DOWNLOAD_DIR.glob("*"):
+            if f.stat().st_mtime < now - age_limit:
+                try:
+                    if f.is_file(): f.unlink()
+                    elif f.is_dir(): shutil.rmtree(f)
+                    log.info(f"Purged file: {f.name}")
+                except Exception as e:
+                    log.error(f"Failed to delete {f.name}: {e}")
+
+class CookieManager:
+    """Ensures YouTube Cookies are Valid"""
+    
+    @staticmethod
+    def refresh_cookies():
+        log.info(f"Fetching cookies from {SystemConfig.COOKIES_URL}...")
+        try:
+            r = requests.get(SystemConfig.COOKIES_URL, timeout=15)
+            if r.status_code == 200:
+                with open(SystemConfig.COOKIES_FILE, "w", encoding="utf-8") as f:
+                    f.write(r.text)
+                log.info("Cookies updated successfully.")
+                return True
+        except Exception as e:
+            log.error(f"Cookie fetch failed: {e}")
+        return False
+
+# ==============================================================================
+# [MODULE 6] WEBSOCKET REAL-TIME BUS
+# ==============================================================================
+
+class SocketManager:
+    """Manages WebSocket Connections"""
+    def __init__(self):
+        self.active_connections: Dict[str, WebSocket] = {}
+
+    async def connect(self, websocket: WebSocket, client_id: str):
+        await websocket.accept()
+        self.active_connections[client_id] = websocket
+        log.debug(f"Client Connected: {client_id}")
 
     def disconnect(self, client_id: str):
-        if client_id in self._conns:
+        if client_id in self.active_connections:
+            del self.active_connections[client_id]
+
+    async def send_json(self, client_id: str, data: dict):
+        if client_id in self.active_connections:
             try:
-                del self._conns[client_id]
-            except KeyError:
-                pass
-        if client_id in self._locks:
+                await self.active_connections[client_id].send_json(data)
+            except RuntimeError:
+                self.disconnect(client_id)
+
+ws_manager = SocketManager()
+
+# ==============================================================================
+# [MODULE 7] DOWNLOAD ENGINE (CORE)
+# ==============================================================================
+
+class EngineWorker:
+    """The Heavy Lifter - Wraps yt-dlp"""
+    
+    def __init__(self):
+        self.executor = ThreadPoolExecutor(max_workers=SystemConfig.MAX_WORKERS)
+
+    def _progress_hook(self, d, task_id, client_id):
+        if d['status'] == 'downloading':
             try:
-                del self._locks[client_id]
-            except KeyError:
-                pass
-        logger.info(f"WS disconnected: {client_id}")
+                # Safe conversion of values
+                p = d.get('_percent_str', '0%').replace('%', '')
+                speed = d.get('_speed_str', 'N/A')
+                eta = d.get('_eta_str', 'N/A')
+                
+                payload = {
+                    "type": "progress",
+                    "task_id": task_id,
+                    "percent": float(p),
+                    "speed": speed,
+                    "eta": eta,
+                    "filename": d.get('filename', 'Unknown')
+                }
+                
+                # Send to Socket
+                asyncio.run_coroutine_threadsafe(
+                    ws_manager.send_json(client_id, payload),
+                    loop
+                )
+                
+                # Low-freq DB Update (Optimization)
+                if int(float(p)) % 10 == 0:
+                    db.update_task(task_id, progress=float(p), speed=speed, status='downloading')
 
-    async def send_json(self, client_id: str, payload: dict):
-        ws = self._conns.get(client_id)
-        if not ws:
-            logger.debug(f"No websocket for client {client_id}")
-            return
-        lock = self._locks.get(client_id)
-        if lock:
-            async with lock:
-                try:
-                    await ws.send_json(payload)
-                except Exception as e:
-                    logger.warning(f"Failed to send to {client_id}: {e}")
-
-    async def broadcast(self, payload: dict):
-        for cid in list(self._conns.keys()):
-            try:
-                await self.send_json(cid, payload)
-            except Exception:
-                pass
-
-ws_manager = WSManager()
-
-
-# -------------------------
-# DownloadManager
-# -------------------------
-class DownloadManager:
-    """
-    مدير التنزيل: yt-dlp (في ThreadPool) + aria2c كـ external_downloader
-    - يدعم progress hooks -> WebSocket
-    - يحتوي cache للبحث TTL=20 دقيقة (configurable)
-    """
-    def __init__(self,
-                 downloads_dir: Path = DOWNLOADS_DIR,
-                 max_workers: int = 3,
-                 aria2c_args: Optional[List[str]] = None,
-                 search_cache_ttl: int = 20 * 60):  # 20 دقيقة
-        self.downloads_dir = Path(downloads_dir)
-        self.downloads_dir.mkdir(parents=True, exist_ok=True)
-        self.executor = ThreadPoolExecutor(max_workers=max_workers)
-        self.queue: asyncio.Queue = asyncio.Queue()
-        self.status: Dict[str, Dict[str, Any]] = {}
-        self.aria2c_args = aria2c_args or [
-            "--split=16",
-            "--max-connection-per-server=8",
-            "--min-split-size=1M",
-            "--max-tries=5",
-            "--retry-wait=3"
-        ]
-        self.loop: Optional[asyncio.AbstractEventLoop] = None
-        self._search_cache: Dict[str, Tuple[Any, float]] = {}
-        self._search_cache_ttl = search_cache_ttl
-        self._worker_task = None
-
-    # يجب استدعاءه أثناء حدث startup
-    async def start(self):
-        if self.loop is None:
-            self.loop = asyncio.get_event_loop()
-        if not self._worker_task:
-            self._worker_task = asyncio.create_task(self._worker_loop())
-            logger.info("Download worker started")
-
-    async def _worker_loop(self):
-        logger.info("Worker loop running")
-        while True:
-            job = await self.queue.get()
-            try:
-                await self._process_job(job)
             except Exception as e:
-                logger.exception("Error processing job: %s", e)
-            finally:
-                try:
-                    self.queue.task_done()
-                except Exception:
-                    pass
+                # Suppress errors inside hook to not crash download
+                pass
 
-    async def enqueue(self, url: str, client_id: str) -> str:
-        job_id = str(uuid4())
-        job = {"id": job_id, "url": url, "client_id": client_id, "created_at": time.time()}
-        self.status[job_id] = {"state": "queued", "progress": 0, "url": url, "created_at": time.time()}
-        await self.queue.put(job)
-        # إعلام العميل بالـ queued
-        await ws_manager.send_json(client_id, {"event": "queued", "job_id": job_id, "url": url})
-        logger.info(f"Enqueued job {job_id} url={url} client={client_id}")
-        return job_id
+    def run_task(self, task_id: str, url: str, client_id: str):
+        """This runs inside a thread pool"""
+        log.info(f"Starting Task {task_id} for Client {client_id}")
+        db.update_task(task_id, status="processing")
+        
+        cookie_path = str(SystemConfig.COOKIES_FILE)
+        if not os.path.exists(cookie_path):
+             # Try emergency fetch
+             CookieManager.refresh_cookies()
 
-    async def _process_job(self, job: dict):
-        job_id = job["id"]
-        url = job["url"]
-        client_id = job["client_id"]
-        logger.info(f"Processing job {job_id} -> {url}")
-        self.status[job_id].update({"state": "processing", "progress": 0, "started_at": time.time()})
-        await ws_manager.send_json(client_id, {"event": "started", "job_id": job_id, "url": url})
-
-        # 1) استخراج info
-        try:
-            info = await asyncio.get_event_loop().run_in_executor(self.executor, self._ydl_extract_info_blocking, url)
-            if not info:
-                raise RuntimeError("No info returned by yt-dlp (possible cookies issue)")
-            self.status[job_id]["info"] = info
-        except Exception as e:
-            logger.exception("Failed to extract info: %s", e)
-            err = str(e)
-            if "Sign in to confirm" in err or "cookie" in err.lower():
-                err = "يوتيوب يطلب تسجيل دخول أو ملفات الكوكيز. حدّث cookies.txt."
-            self.status[job_id].update({"state": "error", "error": err})
-            await ws_manager.send_json(client_id, {"event": "error", "job_id": job_id, "error": err})
-            return
-
-        # 2) تنزيل
-        out_template = "%(id)s.%(ext)s"
-        ytdl_opts = {
-            "format": "bestvideo+bestaudio/best",
-            "outtmpl": str(self.downloads_dir / out_template),
-            "noplaylist": True,
-            "quiet": True,
-            "no_warnings": True,
-            "external_downloader": "aria2c",
-            "external_downloader_args": self.aria2c_args,
-            "progress_hooks": [self._make_progress_hook(job_id, client_id)],
-            "retries": 3,
-            "fragment_retries": 3,
-        }
-        if COOKIES_FILE.exists():
-            ytdl_opts["cookiefile"] = str(COOKIES_FILE)
-            logger.info(f"Using cookies: {COOKIES_FILE}")
-
-        ytdl_opts["http_headers"] = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
+        opts = {
+            'cookiefile': cookie_path,
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'outtmpl': str(SystemConfig.DOWNLOAD_DIR / f'%(title)s_{task_id}.%(ext)s'),
+            'quiet': True,
+            'no_warnings': True,
+            'progress_hooks': [lambda d: self._progress_hook(d, task_id, client_id)],
+            # Resilience Options
+            'retries': 10,
+            'fragment_retries': 10,
+            'skip_unavailable_fragments': True,
+            'keepvideo': False,
         }
 
         try:
-            await asyncio.get_event_loop().run_in_executor(self.executor, self._ydl_download_blocking, url, ytdl_opts)
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                filename = ydl.prepare_filename(info)
+                
+                # Success
+                final_name = os.path.basename(filename)
+                db.update_task(task_id, status="completed", progress=100.0, filepath=filename)
+                db.log_event("DOWNLOAD_SUCCESS", f"Downloaded {final_name}")
+                
+                asyncio.run_coroutine_threadsafe(
+                    ws_manager.send_json(client_id, {
+                        "type": "completed",
+                        "path": f"/stream/{final_name}",
+                        "filename": final_name
+                    }),
+                    loop
+                )
+
         except Exception as e:
-            msg = str(e)
-            logger.exception("Download failed: %s", msg)
-            status_msg = msg[:400] if len(msg) > 400 else msg
-            self.status[job_id].update({"state": "error", "error": status_msg})
-            await ws_manager.send_json(client_id, {"event": "error", "job_id": job_id, "error": status_msg})
-            return
+            # Failure
+            error_msg = str(e)
+            log.error(f"Task {task_id} Failed: {error_msg}")
+            db.update_task(task_id, status="failed", error_log=error_msg)
+            db.log_event("DOWNLOAD_ERROR", f"Failed URL {url}: {error_msg}")
+            
+            asyncio.run_coroutine_threadsafe(
+                ws_manager.send_json(client_id, {
+                    "type": "error",
+                    "msg": "فشل التحميل. تأكد من الرابط أو حاول لاحقاً."
+                }),
+                loop
+            )
 
-        # 3) تحديد الملف الناتج
-        try:
-            vid_id = (self.status[job_id].get("info") or {}).get("id") or job_id
-            found_file = None
-            for p in self.downloads_dir.iterdir():
-                if p.name.startswith(str(vid_id) + "."):
-                    found_file = p
-                    break
-            if not found_file:
-                candidates = sorted(self.downloads_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True)
-                found_file = candidates[0] if candidates else None
-        except Exception:
-            found_file = None
+engine = EngineWorker()
 
-        filename = found_file.name if found_file else None
-        self.status[job_id].update({"state": "finished", "progress": 100, "filename": filename, "finished_at": time.time()})
-        await ws_manager.send_json(client_id, {"event": "finished", "job_id": job_id, "meta": self.status[job_id].get("info", {}), "filename": filename})
-        logger.info(f"Job {job_id} finished -> file={filename}")
+# ==============================================================================
+# [MODULE 8] FASTAPI APP FACTORY
+# ==============================================================================
 
-    # ---------- blocking helpers ----------
-    def _ydl_extract_info_blocking(self, url: str) -> dict:
-        if yt_dlp_module is None:
-            raise RuntimeError("yt-dlp غير مثبت. نفّذ: pip install yt-dlp")
-        ydl_opts = {"quiet": True, "no_warnings": True, "skip_download": True, "noplaylist": True, "format": "best"}
-        if COOKIES_FILE.exists():
-            ydl_opts["cookiefile"] = str(COOKIES_FILE)
-        with yt_dlp_module.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            if not isinstance(info, dict):
-                return {}
-            return info
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup and Shutdown Logic"""
+    global loop
+    loop = asyncio.get_running_loop()
+    
+    log.info("--- HYPERION SYSTEM BOOT ---")
+    log.info(f"Authenticated Mode: ACTIVE (User: {SystemConfig.AUTH_USER})")
+    
+    # 1. Fetch Cookies
+    CookieManager.refresh_cookies()
+    
+    # 2. Start Cleanup Daemon
+    asyncio.create_task(StorageGuardian.run_cleanup_loop())
+    
+    yield
+    
+    log.info("--- HYPERION SHUTDOWN ---")
 
-    def _ydl_download_blocking(self, url: str, opts: dict) -> Any:
-        if yt_dlp_module is None:
-            raise RuntimeError("yt-dlp غير مثبت. نفّذ: pip install yt-dlp")
-        try:
-            with yt_dlp_module.YoutubeDL(opts) as ydl:
-                return ydl.download([url])
-        except Exception as e:
-            tb = traceback.format_exc()
-            logger.error("yt-dlp download exception: %s\n%s", e, tb)
-            raise
+app = FastAPI(
+    title=SystemConfig.APP_NAME,
+    version=SystemConfig.VERSION,
+    lifespan=lifespan,
+    docs_url=None, # Security: Disable Swagger
+    redoc_url=None
+)
 
-    def _make_progress_hook(self, job_id: str, client_id: str):
-        def hook(d):
-            try:
-                status_val = d.get("status")
-                if status_val == "downloading":
-                    total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
-                    downloaded = d.get("downloaded_bytes") or 0
-                    speed = d.get("speed") or 0
-                    percent = int((downloaded / total) * 100) if total else 0
-                    # تحديث الحالة
-                    self.status[job_id].update({"progress": percent, "downloaded": downloaded, "total": total, "speed": speed})
-                    payload = {"event": "progress", "job_id": job_id, "status": status_val, "progress": percent, "downloaded": downloaded, "total": total, "speed": speed}
-                    # إرسال من ثريد لللوب الرئيسي بأمان
-                    try:
-                        if self.loop:
-                            asyncio.run_coroutine_threadsafe(ws_manager.send_json(client_id, payload), self.loop)
-                    except Exception:
-                        logger.debug("Failed to schedule ws send from hook")
-                elif status_val == "finished":
-                    payload = {"event": "ydl_finished", "job_id": job_id}
-                    try:
-                        if self.loop:
-                            asyncio.run_coroutine_threadsafe(ws_manager.send_json(client_id, payload), self.loop)
-                    except Exception:
-                        pass
-            except Exception as e:
-                logger.debug("progress hook error: %s", e)
-        return hook
+# Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    # ---------- search with TTL cache ----------
-    async def search(self, query: str, max_results: int = 6) -> List[Dict[str, Any]]:
-        q = (query or "").strip()
-        if not q:
-            return []
-        cached = self._search_cache.get(q)
-        if cached:
-            result, ts = cached
-            if time.time() - ts < self._search_cache_ttl:
-                return result
-        try:
-            res = await asyncio.get_event_loop().run_in_executor(self.executor, self._search_blocking, q, max_results)
-            self._search_cache[q] = (res, time.time())
-            return res
-        except Exception as e:
-            logger.exception("Search failed: %s", e)
-            return []
+# Static Files
+app.mount("/static", StaticFiles(directory=SystemConfig.STATIC_DIR), name="static")
+templates = Jinja2Templates(directory=SystemConfig.TEMPLATES_DIR)
 
-    def _search_blocking(self, query: str, max_results: int = 6) -> List[Dict[str, Any]]:
-        if yt_dlp_module is None:
-            raise RuntimeError("yt-dlp not installed")
-        opts = {"quiet": True, "skip_download": True, "extract_flat": "in_playlist", "default_search": f"ytsearch{max_results}", "noplaylist": True}
-        if COOKIES_FILE.exists():
-            opts["cookiefile"] = str(COOKIES_FILE)
-        with yt_dlp_module.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(f"ytsearch{max_results}:{query}", download=False)
-            entries = info.get("entries", []) if isinstance(info, dict) else []
-            results = []
-            for e in entries:
-                results.append({
-                    "id": e.get("id"),
-                    "title": e.get("title"),
-                    "url": e.get("webpage_url") or e.get("url"),
-                    "duration": e.get("duration"),
-                    "uploader": e.get("uploader"),
-                    "thumbnail": e.get("thumbnail"),
-                })
-            return results
+# Global Exception Handler (Catch All)
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    error_id = uuid.uuid4()
+    log.error(f"Global Error {error_id}: {exc}\n{traceback.format_exc()}")
+    return JSONResponse(
+        status_code=500,
+        content={"message": "Internal Server Error", "error_id": str(error_id)}
+    )
 
-    # ---------- utilities ----------
-    def list_jobs(self) -> Dict[str, Any]:
-        return self.status
-
-    def list_history(self) -> List[Dict[str, Any]]:
-        files = []
-        for p in sorted(self.downloads_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-            if not p.is_file():
-                continue
-            files.append({"file": p.name, "size": p.stat().st_size, "mtime": p.stat().st_mtime})
-        return files
-
-    def clear_search_cache(self):
-        self._search_cache.clear()
-        logger.info("Search cache cleared")
-
-# create manager
-download_manager = DownloadManager(max_workers=3)
-
-
-# -------------------------
-# FastAPI events / endpoints
-# -------------------------
-@app.on_event("startup")
-async def startup_event():
-    # تعيين لوب والبدء
-    download_manager.loop = asyncio.get_event_loop()
-    await download_manager.start()
-    logger.info("Startup complete")
-
+# ==============================================================================
+# [MODULE 9] ROUTING & ENDPOINTS
+# ==============================================================================
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    tpl = TEMPLATES_DIR / "index.html"
-    if not tpl.exists():
-        return HTMLResponse("<h3>واجهة غير موجودة — ضع templates/index.html</h3>")
-    return templates.TemplateResponse("index.html", {"request": request})
+async def home(request: Request, username: str = Depends(SecurityModule.verify_auth)):
+    """Protected Dashboard Route"""
+    template_path = SystemConfig.TEMPLATES_DIR / SystemConfig.TEMPLATE_INDEX
+    
+    if not template_path.exists():
+        return HTMLResponse(
+            f"""
+            <html>
+            <body style="background:#000; color:red; font-family:monospace; text-align:center; padding-top:100px;">
+                <h1>CRITICAL MISSING FILE</h1>
+                <p>Could not find: {template_path}</p>
+                <p>Please upload the design file.</p>
+            </body>
+            </html>
+            """, 
+            status_code=404
+        )
+    
+    return templates.TemplateResponse(
+        SystemConfig.TEMPLATE_INDEX, 
+        {"request": request, "user": username}
+    )
 
-
-@app.get("/health")
-async def health():
+@app.get("/api/search")
+async def search_youtube(q: str, username: str = Depends(SecurityModule.verify_auth)):
+    """Search Proxy with Threading"""
+    if not q: raise HTTPException(400, "Query empty")
+    
+    opts = {
+        'cookiefile': str(SystemConfig.COOKIES_FILE),
+        'quiet': True,
+        'extract_flat': True,
+        'skip_download': True
+    }
+    
+    def _search():
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            return ydl.extract_info(f"ytsearch10:{q}", download=False).get('entries', [])
+    
     try:
-        cpu = int(psutil.cpu_percent(interval=0.1)) if psutil else 0
-        ram = int(psutil.virtual_memory().percent) if psutil else 0
-    except Exception:
-        cpu = 0; ram = 0
-    return {"ok": True, "cpu": cpu, "ram": ram, "downloads_in_queue": download_manager.queue.qsize()}
-
-
-@app.get("/api/jobs")
-async def api_jobs():
-    return JSONResponse(content={"jobs": download_manager.list_jobs()})
-
-
-@app.get("/api/history")
-async def api_history():
-    return JSONResponse(content=download_manager.list_history())
-
-
-# نوفّر كلا المسارين لــ compatibility مع البوت/الواجهة القديمة
-@app.post("/api/download")
-@app.post("/api/v1/download")
-async def api_download(payload: dict):
-    url = (payload.get("url") or "").strip()
-    client_id = (payload.get("client_id") or "").strip()
-    if not url:
-        raise HTTPException(status_code=400, detail="url is required")
-    if not client_id:
-        raise HTTPException(status_code=400, detail="client_id is required")
-    try:
-        job_id = await download_manager.enqueue(url, client_id)
-        return JSONResponse(content={"ok": True, "job_id": job_id})
+        results = await loop.run_in_executor(engine.executor, _search)
+        return JSONResponse(results)
     except Exception as e:
-        logger.exception("enqueue failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        log.error(f"Search Failed: {e}")
+        raise HTTPException(500, "Search engine failure")
 
-
-@app.post("/api/search")
-async def api_search(payload: dict):
-    q = (payload.get("query") or "").strip()
-    if not q:
-        raise HTTPException(status_code=400, detail="query is required")
-    results = await download_manager.search(q, max_results=6)
-    return JSONResponse(content={"ok": True, "query": q, "results": results})
-
-
-@app.post("/api/clear_cache")
-async def api_clear_cache():
-    download_manager.clear_search_cache()
-    return {"ok": True, "cleared": True}
-
-
-@app.post("/api/stop")
-async def api_stop(payload: dict = None):
-    """
-    إيقاف الخادم عبر طلب من الواجهة. سيغلق العملية بعد إبلاغ العميل.
-    ملاحظة: في بيئات مثل Fly.io ستقوم المنصة بإعادة تشغيل الحاوية حسب config.
-    """
-    # نرد فورًا، ثم نغلق العملية في ثريد منفصل بعد 0.5 ثانية
-    def _exit_later():
-        time.sleep(0.5)
-        logger.warning("Exiting process (requested via /api/stop)")
-        # إنهاء قاسي (سيوقف الحاوية)
-        os._exit(0)
-    threading.Thread(target=_exit_later, daemon=True).start()
-    return {"ok": True, "stopping": True}
-
-
-@app.websocket("/ws/downloads/{client_id}")
-async def websocket_endpoint(ws: WebSocket, client_id: str):
-    await ws_manager.connect(client_id, ws)
+@app.post("/api/queue")
+async def queue_download(
+    request: Request, 
+    background_tasks: BackgroundTasks, 
+    username: str = Depends(SecurityModule.verify_auth)
+):
+    """Secure Download Endpoint"""
     try:
-        while True:
-            try:
-                data = await ws.receive_text()
-                # دعم رسائل بسيطة من العميل (ex: {"action":"status","job_id": "..."})
-                try:
-                    d = json.loads(data)
-                    if isinstance(d, dict) and d.get("action") == "status" and d.get("job_id"):
-                        job_state = download_manager.status.get(d.get("job_id"))
-                        await ws_manager.send_json(client_id, {"event": "status_response", "job_id": d.get("job_id"), "status": job_state})
-                except json.JSONDecodeError:
-                    await ws_manager.send_json(client_id, {"event": "ack", "msg": data})
-            except WebSocketDisconnect:
-                break
-            except Exception as e:
-                logger.debug("WS recv error: %s", e)
-                await asyncio.sleep(0.1)
-    finally:
-        ws_manager.disconnect(client_id)
-
+        data = await request.json()
+    except:
+        raise HTTPException(400, "Invalid JSON")
+        
+    url = data.get("url")
+    client_id = data.get("client_id")
+    
+    if not url or not client_id:
+        raise HTTPException(400, "Missing url or client_id")
+        
+    task_id = str(uuid.uuid4())
+    
+    # 1. Log to DB
+    db.create_task(task_id, client_id, url)
+    db.log_event("TASK_QUEUED", f"User {username} queued {url}")
+    
+    # 2. Dispatch to Background (Separate Thread)
+    background_tasks.add_task(engine.run_task, task_id, url, client_id)
+    
+    return {"status": "ok", "task_id": task_id, "message": "Download Queued"}
 
 @app.get("/stream/{filename}")
-async def stream_file(request: Request, filename: str):
-    # تحصين اسم الملف
-    safe = os.path.basename(filename)
-    file_path = DOWNLOADS_DIR / safe
+async def stream_file(filename: str, username: str = Depends(SecurityModule.verify_auth)):
+    """Secure File Serving"""
+    file_path = SystemConfig.DOWNLOAD_DIR / filename
+    
+    # Security: Prevent Directory Traversal
+    if ".." in filename or not file_path.resolve().is_relative_to(SystemConfig.DOWNLOAD_DIR):
+        db.log_event("SECURITY_ALERT", f"Path traversal attempt by {username}: {filename}")
+        raise HTTPException(403, "Access Denied")
+        
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="File not found")
-    file_size = file_path.stat().st_size
-    range_header = request.headers.get("range")
-    if not range_header:
-        return FileResponse(str(file_path), media_type="video/mp4")
-    # parse range
-    try:
-        range_val = range_header.strip().lower()
-        if not range_val.startswith("bytes="):
-            raise ValueError("Invalid range")
-        range_val = range_val.split("=", 1)[1]
-        start_str, _, end_str = range_val.partition("-")
-        start = int(start_str) if start_str else 0
-        end = int(end_str) if end_str else file_size - 1
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid Range header")
-    if start >= file_size:
-        raise HTTPException(status_code=status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE, detail="Range not satisfiable")
-    length = end - start + 1
+        raise HTTPException(404, "File not found (Expired or Deleted)")
+        
+    return FileResponse(
+        file_path, 
+        filename=filename,
+        media_type="application/octet-stream"
+    )
 
-    async def iterfile(path: str, start_pos: int, total_len: int):
-        with open(path, "rb") as f:
-            f.seek(start_pos)
-            remaining = total_len
-            chunk = 1024 * 1024
-            while remaining > 0:
-                read_size = min(chunk, remaining)
-                data = f.read(read_size)
-                if not data:
-                    break
-                remaining -= len(data)
-                yield data
-                await asyncio.sleep(0)
-
-    headers = {
-        "Content-Range": f"bytes {start}-{end}/{file_size}",
-        "Accept-Ranges": "bytes",
-        "Content-Length": str(length),
-        "Content-Type": "video/mp4",
+@app.get("/api/stats")
+async def system_stats(username: str = Depends(SecurityModule.verify_auth)):
+    """Admin Telemetry"""
+    mem = psutil.virtual_memory()
+    disk = psutil.disk_usage(SystemConfig.BASE_DIR)
+    
+    return {
+        "cpu_usage": psutil.cpu_percent(),
+        "ram_usage": mem.percent,
+        "disk_usage": disk.percent,
+        "workers_active": threading.active_count(),
+        "security_level": "High (Authenticated)"
     }
-    return StreamingResponse(iterfile(str(file_path), start, length), status_code=206, headers=headers)
 
-
-# -------------------------
-# تشغيل محلي (main)
-# -------------------------
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", "8080"))
-    print(f"تشغيل محلي: uvicorn server:app --host 0.0.0.0 --port {port} --loop uvloop")
+# WebSocket is Open (No Auth Header support in JS standard WS API usually, handled by token in msg if needed)
+# For simplicity, we keep it open but validate messages if needed.
+@app.websocket("/ws/{client_id}")
+async def websocket_endpoint(websocket: WebSocket, client_id: str):
+    await ws_manager.connect(websocket, client_id)
     try:
-        import uvicorn
-        uvicorn.run("server:app", host="0.0.0.0", port=port, loop="uvloop")
-    except Exception:
-        try:
-            uvicorn.run("server:app", host="0.0.0.0", port=port)
-        except Exception as e:
-            print("خطأ عند تشغيل uvicorn:", e)
+        while True:
+            # Keep-alive loop
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        ws_manager.disconnect(client_id)
+    except Exception as e:
+        log.error(f"WebSocket Error: {e}")
+        ws_manager.disconnect(client_id)
+
+# ==============================================================================
+# [MODULE 10] SERVER ENTRY POINT
+# ==============================================================================
+
+if __name__ == "__main__":
+    # Ensure Single Instance Logic could go here (PID check)
+    
+    port = int(os.environ.get("PORT", 8080))
+    log.info(f"Starting Hyperion Titanium on Port {port}...")
+    log.info("Make sure 'requirements.txt' contains: fastapi, uvicorn, yt-dlp, psutil, requests")
+    
+    try:
+        uvicorn.run(
+            "server:app",
+            host="0.0.0.0",
+            port=port,
+            log_level="warning", # Suppress default logs, use ours
+            loop="uvloop" if sys.platform != "win32" else "asyncio",
+            reload=False,
+            workers=1 # Using 1 worker for singleton DB access, Threads handle concurrency
+        )
+    except KeyboardInterrupt:
+        log.info("Stopping Server...")
+    except Exception as e:
+        log.critical(f"Server Crash: {e}")
