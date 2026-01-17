@@ -6,7 +6,7 @@ fastapi==0.110.0
 uvicorn[standard]==0.29.0
 
 # تنزيل وبحث يوتيوب
-yt-dlp==2025.12.8
+yt-dlp[default]==2025.12.8
 
 # WebSockets
 websockets==12.0
