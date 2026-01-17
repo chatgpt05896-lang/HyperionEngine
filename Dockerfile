@@ -1,18 +1,20 @@
 # =========================================
-# Hyper-Tube X - Production Dockerfile
+# Hyper-Tube X — Production Dockerfile (2026)
+# Fly.io + yt-dlp + aria2 + ffmpeg
 # =========================================
 
 FROM python:3.11-slim-bookworm
 
 # ===============================
-# إعداد متغيرات البيئة
+# Environment (Performance + Stability)
 # ===============================
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV PIP_NO_CACHE_DIR=1
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PORT=8080
 
 # ===============================
-# تثبيت متطلبات النظام (CRITICAL)
+# System Dependencies (CRITICAL)
 # ===============================
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
@@ -20,44 +22,41 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     build-essential \
+    tini \
     && rm -rf /var/lib/apt/lists/*
 
 # ===============================
-# إنشاء مستخدم غير root (أمان)
+# Non-root user (Security)
 # ===============================
 RUN useradd -m -u 1000 hyper
 
 WORKDIR /app
 
 # ===============================
-# نسخ ملف المكتبات
+# Python Dependencies
 # ===============================
 COPY requirements.txt .
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
 # ===============================
-# تثبيت مكتبات بايثون
-# ===============================
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
-
-# ===============================
-# نسخ الكود
+# Application Code
 # ===============================
 COPY . .
 
 # ===============================
-# صلاحيات المستخدم
+# Permissions
 # ===============================
 RUN chown -R hyper:hyper /app
-
 USER hyper
 
 # ===============================
-# فتح البورت
+# Network
 # ===============================
-EXPOSE 8000
+EXPOSE 8080
 
 # ===============================
-# تشغيل السيرفر
+# Init + Run (Fly.io Compatible)
 # ===============================
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000", "--loop", "uvloop"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
+
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8080", "--loop", "uvloop", "--proxy-headers"]
