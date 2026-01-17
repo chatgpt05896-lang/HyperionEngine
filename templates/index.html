@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>هايبـريون ألتيميت | تسجيل الدخول</title>
 
     <!-- خطوط وأيقونات -->
@@ -10,172 +10,147 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
     <style>
-        :root {
+        :root{
             --bg-deep: #000000;
-            --glass: rgba(28, 28, 30, 0.85);
-            --glass-border: rgba(255, 255, 255, 0.1);
+            --glass: rgba(28,28,30,0.85);
+            --glass-border: rgba(255,255,255,0.08);
             --primary: #0A84FF;
             --danger: #FF453A;
             --success: #30D158;
             --text-main: #FFFFFF;
             --text-sub: #98989D;
         }
-        * { box-sizing: border-box; }
-        body { margin: 0; background-color: var(--bg-deep); color: var(--text-main); font-family: 'Tajawal', sans-serif; overflow-x: hidden; min-height: 100vh; }
-        #cosmos { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; background: radial-gradient(circle at center, #1c1c1e 0%, #000000 100%); }
+        *{box-sizing:border-box}
+        body{margin:0;background:var(--bg-deep);color:var(--text-main);font-family:'Tajawal',sans-serif;min-height:100vh;overflow-x:hidden}
+        #cosmos{position:fixed;top:0;left:0;width:100%;height:100%;z-index:-1;background:radial-gradient(circle at center,#1c1c1e 0%,#000 100%)}
 
-        /* شاشة تسجيل الدخول */
-        #login-screen {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95); z-index: 9999;
-            display: flex; justify-content: center; align-items: center;
-            backdrop-filter: blur(20px); transition: opacity 0.5s;
-        }
-        .login-box {
-            background: var(--glass); border: 1px solid var(--glass-border);
-            padding: 40px; border-radius: 20px; width: 350px; text-align: center;
-            box-shadow: 0 0 50px rgba(0,0,0,0.5);
-        }
-        .login-title { font-size: 1.5rem; font-weight: 900; margin-bottom: 20px; color: white; }
-        .login-input {
-            width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border);
-            padding: 12px; border-radius: 10px; color: white; font-family: 'Tajawal';
-            margin-bottom: 15px; outline: none; box-sizing: border-box;
-        }
-        .login-input:focus { border-color: var(--primary); }
-        .auth-actions { display: flex; gap: 10px; align-items: center; }
-        .btn-login {
-            flex: 2; padding: 12px; background: var(--primary); color: white; border: none;
-            border-radius: 10px; cursor: pointer; font-weight: bold; font-family: 'Tajawal';
-        }
-        .btn-bio {
-            flex: 1; padding: 12px; background: rgba(255,255,255,0.1); border: 1px solid var(--glass-border);
-            border-radius: 10px; cursor: pointer; color: var(--primary); font-size: 1.2rem;
-        }
-        .btn-bio:hover { background: rgba(10,132,255,0.1); border-color: var(--primary); }
+        /* --- Login --- */
+        #login-screen{position:fixed;inset:0;background:rgba(0,0,0,0.96);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(20px);transition:opacity .4s}
+        .login-box{width:360px;background:var(--glass);border:1px solid var(--glass-border);padding:36px;border-radius:18px;box-shadow:0 10px 40px rgba(0,0,0,.6);text-align:center}
+        .login-title{font-size:1.6rem;font-weight:900;margin-bottom:18px;color:var(--text-main)}
+        .login-input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:rgba(255,255,255,0.02);color:var(--text-main);margin-bottom:12px;outline:none}
+        .auth-actions{display:flex;gap:10px}
+        .btn-login{flex:2;padding:12px;border-radius:10px;border:0;background:var(--primary);color:#fff;cursor:pointer;font-weight:800}
+        .btn-bio{flex:1;padding:12px;border-radius:10px;border:1px solid var(--glass-border);background:rgba(255,255,255,0.02);color:var(--primary);cursor:pointer}
 
-        /* لوحة التحكم */
-        .layout { max-width: 1300px; margin: 0 auto; padding: 40px 20px; filter: blur(10px); opacity: 0; transition: 1s; display: none; }
-        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; padding: 25px 40px; background: var(--glass); backdrop-filter: blur(25px); border-radius: 24px; border: 1px solid var(--glass-border); }
-        .brand h1 { font-weight: 900; font-size: 2rem; margin: 0; }
-        .brand span { color: var(--primary); font-size: 0.8em; }
-        .live-dot { height: 12px; width: 12px; background-color: var(--success); border-radius: 50%; display: inline-block; box-shadow: 0 0 15px var(--success); animation: pulse 2s infinite; margin-right: 10px; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        /* --- Dashboard --- */
+        .layout{max-width:1300px;margin:0 auto;padding:36px 20px;display:none;opacity:0;filter:blur(8px);transition:all .6s}
+        header{display:flex;justify-content:space-between;align-items:center;padding:20px;border-radius:18px;background:var(--glass);border:1px solid var(--glass-border);backdrop-filter:blur(18px);margin-bottom:28px}
+        .brand h1{margin:0;font-weight:900;font-size:1.8rem}
+        .brand span{color:var(--primary);font-weight:900}
+        .live-dot{height:12px;width:12px;border-radius:50%;background:var(--success);box-shadow:0 0 12px var(--success);display:inline-block;margin-left:10px;animation:pulse 2s infinite}
+        @keyframes pulse{0%{opacity:1}50%{opacity:.4}100%{opacity:1}}
 
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .panel { background: var(--glass); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 20px; padding: 25px; transition: 0.3s; position: relative; overflow: hidden; }
-        .panel-label { font-size: 0.9rem; color: var(--text-sub); display: block; margin-bottom: 10px; }
-        .panel-value { font-size: 2rem; font-weight: 800; margin: 0; color: white; }
+        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-bottom:22px}
+        .panel{background:var(--glass);border-radius:16px;padding:20px;border:1px solid var(--glass-border);backdrop-filter:blur(12px)}
+        .panel-label{color:var(--text-sub);font-size:.9rem;margin-bottom:6px}
+        .panel-value{font-size:1.8rem;font-weight:800}
 
-        .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 25px; }
-        @media (max-width: 1000px) { .main-grid { grid-template-columns: 1fr; } }
+        .main-grid{display:grid;grid-template-columns:2fr 1fr;gap:20px}
+        @media(max-width:1000px){.main-grid{grid-template-columns:1fr}}
 
-        button { width: 100%; padding: 15px; border-radius: 14px; border: none; font-weight: 700; cursor: pointer; transition: 0.3s; font-family: 'Tajawal'; font-size: 1rem; }
-        .btn-blue { background: var(--primary); color: white; }
-        .btn-red { background: rgba(255,69,58,0.15); color: var(--danger); border: 1px solid rgba(255,69,58,0.3); }
+        button{font-weight:700;border-radius:12px;padding:12px;border:0;cursor:pointer}
+        .btn-blue{background:var(--primary);color:#fff}
+        .btn-red{background:rgba(255,69,58,0.12);color:var(--danger);border:1px solid rgba(255,69,58,0.18)}
 
-        .job-card { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; margin-bottom: 10px; border-right: 4px solid var(--primary); }
-        .job-info { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 8px; }
-        .progress-track { width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
-        .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s; }
+        .job-card{background:rgba(255,255,255,0.03);padding:12px;border-radius:10px;margin-bottom:10px;display:block}
+        .job-info{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:.95rem}
+        .progress-track{height:8px;background:rgba(255,255,255,0.06);border-radius:6px;overflow:hidden}
+        .progress-fill{height:100%;background:var(--primary);width:0;transition:width .25s}
 
-        .history-item { display: flex; align-items: center; padding: 12px; border-bottom: 1px solid var(--glass-border); font-size: 0.9rem; }
+        .history-item{display:flex;align-items:center;justify-content:space-between;padding:10px;border-bottom:1px solid var(--glass-border);font-size:.9rem}
+        .download-link{color:var(--primary);text-decoration:none;font-size:.9rem;margin-left:8px}
 
-        #player-modal { display: none; position: fixed; bottom: 30px; left: 30px; width: 380px; background: rgba(20,20,20,0.95); backdrop-filter: blur(40px); border: 1px solid var(--glass-border); border-radius: 20px; padding: 20px; z-index: 1000; box-shadow: 0 30px 80px rgba(0,0,0,0.8); }
-        a.download-link { display:inline-block; margin-top:8px; color:var(--primary); text-decoration:none; font-size:0.9rem; }
+        #player-modal{display:none;position:fixed;right:20px;bottom:20px;width:420px;background:rgba(12,12,12,0.96);border-radius:12px;padding:14px;border:1px solid var(--glass-border);z-index:999}
+        #player-modal video{width:100%;border-radius:8px}
+
+        /* small */
+        small{color:var(--text-sub)}
     </style>
 </head>
 <body>
     <canvas id="cosmos"></canvas>
 
-    <!-- شاشة تسجيل الدخول -->
+    <!-- شاشة الدخول -->
     <div id="login-screen">
         <div class="login-box">
             <div class="login-title">تسجيل الدخول</div>
-            <div id="login-msg" style="color: var(--danger); margin-bottom: 10px; font-size: 0.9rem;"></div>
-
-            <input type="text" id="username" class="login-input" placeholder="اسم المستخدم (Admin)">
-            <input type="password" id="password" class="login-input" placeholder="كلمة المرور (admin)">
-
+            <div id="login-msg" style="color:var(--danger);margin-bottom:10px;font-size:.9rem"></div>
+            <input id="username" class="login-input" placeholder="اسم المستخدم (Admin)">
+            <input id="password" type="password" class="login-input" placeholder="كلمة المرور (admin)">
             <div class="auth-actions">
                 <button class="btn-login" onclick="attemptLogin()">دخول</button>
-                <button class="btn-bio" onclick="triggerBiometric()" title="استخدام البصمة">
-                    <i class="fas fa-fingerprint"></i>
-                </button>
+                <button class="btn-bio" onclick="triggerBiometric()" title="استخدام البصمة"><i class="fas fa-fingerprint"></i></button>
             </div>
-
-            <p style="color: var(--text-sub); font-size: 0.8rem; margin-top: 20px;">
-                Hyperion Secure Access v8.0
-            </p>
+            <p style="color:var(--text-sub);font-size:.82rem;margin-top:14px">Hyperion Secure Access v8.0</p>
         </div>
     </div>
 
-    <!-- الواجهة الرئيسية -->
+    <!-- الواجهة -->
     <div class="layout" id="dashboard">
         <header>
             <div class="brand"><h1>هايبـريون <span>ألتيميت</span></h1></div>
-            <div style="display: flex; align-items: center; gap: 15px;">
-                <div style="text-align: left;">
-                    <div style="font-size:0.8rem; color:var(--text-sub);">المستخدم النشط</div>
-                    <div style="font-weight:bold; direction:ltr;" id="active-user-display">Admin</div>
+            <div style="display:flex;align-items:center;gap:12px">
+                <div style="text-align:left">
+                    <div style="font-size:.82rem;color:var(--text-sub)">المستخدم النشط</div>
+                    <div style="font-weight:800;direction:ltr" id="active-user-display">Admin</div>
                 </div>
                 <div class="live-dot" id="status-dot"></div>
-                <button onclick="logout()" style="width: auto; padding: 5px 10px; font-size: 0.8rem; background: rgba(255,69,58,0.2); color: var(--danger);">خروج</button>
+                <button onclick="logout()" style="padding:7px 10px;background:rgba(255,69,58,0.12);color:var(--danger);border-radius:10px">خروج</button>
             </div>
         </header>
 
         <div class="grid">
             <div class="panel">
-                <span class="panel-label">حمل المعالج</span>
-                <p class="panel-value" id="cpu">0%</p>
+                <div class="panel-label">حمل المعالج</div>
+                <div class="panel-value" id="cpu">0%</div>
             </div>
             <div class="panel">
-                <span class="panel-label">الذاكرة (RAM)</span>
-                <p class="panel-value" id="ram">0%</p>
+                <div class="panel-label">الذاكرة (RAM)</div>
+                <div class="panel-value" id="ram">0%</div>
             </div>
             <div class="panel">
-                <span class="panel-label">المهام النشطة</span>
-                <p class="panel-value" id="active-jobs" style="color:var(--primary)">0</p>
+                <div class="panel-label">المهام النشطة</div>
+                <div class="panel-value" id="active-jobs">0</div>
             </div>
             <div class="panel">
-                <span class="panel-label">حالة السيرفر</span>
-                <p class="panel-value" id="status-text" style="color: var(--success); font-size: 1.5rem;">متصل ✅</p>
+                <div class="panel-label">حالة السيرفر</div>
+                <div class="panel-value" id="status-text" style="color:var(--success);font-size:1.2rem">متصل ✅</div>
             </div>
         </div>
 
         <div class="main-grid">
-            <div style="display: flex; flex-direction: column; gap: 20px;">
+            <div style="display:flex;flex-direction:column;gap:18px">
                 <div class="panel">
-                    <span class="panel-label"><i class="fas fa-search"></i> البحث والتحميل</span>
-                    <div style="display: flex; gap: 10px; margin-top: 15px;">
-                        <!-- الواجهة تقبل رابط يوتيوب أو استعلام -->
-                        <input type="text" id="query" class="login-input" style="margin:0" placeholder="رابط الفيديو أو كلمة البحث..." onkeypress="if(event.keyCode==13) runSearch()">
-                        <button class="btn-blue" style="width: 120px;" onclick="runSearch()" id="search-btn">تحميل</button>
+                    <div class="panel-label"><i class="fas fa-search"></i> البحث والتحميل</div>
+                    <div style="display:flex;gap:10px;margin-top:12px">
+                        <input id="query" class="login-input" placeholder="رابط الفيديو أو عبارة بحث..." onkeypress="if(event.keyCode==13) runSearch()">
+                        <button id="search-btn" class="btn-blue" onclick="runSearch()">تحميل</button>
                     </div>
-                    <div style="margin-top:12px; font-size:0.85rem; color:var(--text-sub);">
-                        ملاحظة: أدخل رابط فيديو أو عبارة بحث. النظام يستخدم الخادم لبدء التنزيل ويعرض التقدّم مباشرة.
-                    </div>
+                    <div style="margin-top:10px;color:var(--text-sub);font-size:.86rem">أدخل رابط يوتيوب كامل أو كلمة بحث — ستتم الإخطارات مباشرة عبر WebSocket.</div>
                 </div>
 
                 <div class="panel">
-                    <span class="panel-label">التنزيلات المباشرة</span>
-                    <div id="active-jobs-list" style="min-height: 50px; color: var(--text-sub); font-size: 0.9rem;">انتظار...</div>
+                    <div class="panel-label">التنزيلات المباشرة</div>
+                    <div id="active-jobs-list" style="min-height:80px;color:var(--text-sub)">لا توجد مهام نشطة</div>
                 </div>
 
                 <div class="panel">
-                    <span class="panel-label">الأرشيف (محلي)</span>
-                    <div id="history-list" style="max-height: 300px; overflow-y: auto;"></div>
+                    <div class="panel-label">الأرشيف (محلي)</div>
+                    <div id="history-list" style="max-height:300px;overflow:auto"></div>
                 </div>
             </div>
 
-            <div style="display: flex; flex-direction: column; gap: 20px;">
+            <div style="display:flex;flex-direction:column;gap:18px">
                 <div class="panel">
-                    <span class="panel-label">إدارة السيرفر</span>
-                    <button class="btn-red" onclick="serverAction('stop')">🛑 إيقاف</button>
+                    <div class="panel-label">إدارة السيرفر</div>
+                    <button class="btn-red" onclick="stopServer()">🛑 إيقاف الخادم</button>
+                    <button class="btn-blue" style="margin-top:10px" onclick="clearCache()">🧹 تنظيف الكاش (20 د')</button>
                 </div>
+
                 <div class="panel">
-                    <span class="panel-label">بيانات الجلسة</span>
-                    <div style="font-size: 0.8rem; color: var(--text-sub); direction: ltr;">
+                    <div class="panel-label">بيانات الجلسة</div>
+                    <div style="font-size:.86rem;color:var(--text-sub);direction:ltr">
                         Session: <span style="color:var(--success)">Active</span><br>
                         Auto-Logout: <span id="timer-display">25:00</span>
                     </div>
@@ -184,390 +159,262 @@
         </div>
     </div>
 
-    <!-- مشغل -->
+    <!-- player modal -->
     <div id="player-modal">
-        <span style="position:absolute; top:15px; left:15px; cursor:pointer; color:var(--text-sub);" onclick="document.getElementById('player-modal').style.display='none'">✕</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <strong id="player-title">Player</strong>
+            <button onclick="document.getElementById('player-modal').style.display='none'" style="background:transparent;color:var(--text-sub);border:0">✕</button>
+        </div>
         <div id="player-container"></div>
     </div>
 
     <script>
-    /******************************************************************
-     * Hyperion UI JS
-     * - متوافق مع server.py (endpoints: /health, /api/jobs, /api/download, /ws/downloads/{client_id}, /stream/{filename})
-     * - كل الشروحات بالعربي داخل التعليقات
-     ******************************************************************/
+    /*****************************************
+     * Hyperion UI JS — تفاعل كامل مع server.py
+     *****************************************/
 
-    // ---------- 1) خلفية النجوم ----------
+    // background stars
     const canvas = document.getElementById('cosmos');
-    const ctx = canvas.getContext && canvas.getContext('2d');
-    let w, h, stars = [];
-    const initStars = () => {
-        w = window.innerWidth; h = window.innerHeight;
-        canvas.width = w; canvas.height = h;
-        stars = [];
-        for (let i = 0; i < 150; i++) stars.push({ x: Math.random()*w, y: Math.random()*h, s: Math.random()*1.5, v: Math.random()*0.5 });
-    };
-    const draw = () => {
-        if (!ctx) return;
-        ctx.clearRect(0,0,w,h);
-        ctx.fillStyle = "rgba(255,255,255,0.8)";
-        stars.forEach(st => {
-            ctx.beginPath(); ctx.arc(st.x, st.y, st.s, 0, Math.PI*2); ctx.fill();
-            st.y -= st.v; if (st.y < 0) st.y = h;
-        });
-        requestAnimationFrame(draw);
-    };
+    let ctx = null;
+    if (canvas && canvas.getContext) ctx = canvas.getContext('2d');
+    let w=0,h=0,stars=[];
+    const initStars = ()=>{ w=window.innerWidth; h=window.innerHeight; canvas.width=w; canvas.height=h; stars=[]; for(let i=0;i<140;i++){ stars.push({x:Math.random()*w,y:Math.random()*h,s:Math.random()*1.6,v:Math.random()*0.6}) } }
+    const draw = ()=>{ if(!ctx) return; ctx.clearRect(0,0,w,h); ctx.fillStyle="rgba(255,255,255,0.8)"; stars.forEach(st=>{ ctx.beginPath(); ctx.arc(st.x,st.y,st.s,0,Math.PI*2); ctx.fill(); st.y -= st.v; if(st.y<0) st.y = h; }); requestAnimationFrame(draw); }
     window.onresize = initStars; initStars(); draw();
 
-    // ---------- 2) جلسة وواجهة الدخول ----------
-    window.onload = function() {
-        const session = localStorage.getItem('hyperion_session');
-        if (session === 'active') unlockDashboard(true);
-        // ضمان وجود client_id للـ websocket
-        if (!localStorage.getItem('hyperion_client_id')) {
-            localStorage.setItem('hyperion_client_id', generateUUID());
-        }
-        connectWS(); // افتح websocket فوراً (سيبقى معلق حتى لو لم تسجل دخول)
-        refreshUI();
-    };
+    // Utilities
+    function generateUUID(){ return 'xxxxxxxxyxxx'.replace(/[xy]/g,function(c){const r=Math.random()*16|0,v=c=='x'?r:(r&0x3|0x8);return v.toString(16)}) + Date.now().toString(36) }
+    function safeFilename(s){ return (s||'').replace(/[^0-9a-zA-Zء-ي \-_.]/g,'').trim().replace(/\s+/g,'_').slice(0,180) }
+    function humanSize(n){ if(!n||n<=0) return '0 B'; const u=['B','KB','MB','GB','TB']; let i=0; while(n>=1024&&i<u.length-1){ n/=1024; i++ } return `${n.toFixed(2)} ${u[i]}` }
+    function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"'`=\/]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[c] }) }
 
-    function attemptLogin() {
-        const u = document.getElementById('username').value;
-        const p = document.getElementById('password').value;
-        const msg = document.getElementById('login-msg');
-        // بيانات تجريبية بسيطة (لو ترغب تضيف auth على السيرفر لاحقاً)
-        if (u === 'Admin' && p === 'admin') {
-            msg.innerText = "";
-            saveSession();
-            unlockDashboard();
-        } else {
-            msg.innerText = "بيانات الدخول غير صحيحة";
-        }
-    }
+    // Session + client id
+    if(!localStorage.getItem('hyperion_client_id')) localStorage.setItem('hyperion_client_id', generateUUID());
+    const clientId = ()=> localStorage.getItem('hyperion_client_id');
 
-    async function triggerBiometric() {
-        const msg = document.getElementById('login-msg');
-        msg.style.color = "var(--primary)";
-        msg.innerText = "ضع اصبعك على المستشعر...";
-        if (!window.PublicKeyCredential) {
-            msg.style.color = "var(--danger)";
-            msg.innerText = "جهازك لا يدعم البصمة";
-            return;
-        }
-        try {
-            const publicKey = {
-                challenge: new Uint8Array(32),
-                rp: { name: "Hyperion" },
-                user: { id: new Uint8Array(16), name: "User", displayName: "User" },
-                pubKeyCredParams: [{ type: "public-key", alg: -7 }],
-                timeout: 60000,
-                authenticatorSelection: { authenticatorAttachment: "platform" }
-            };
-            await navigator.credentials.create({ publicKey });
-            msg.style.color = "var(--success)";
-            msg.innerText = "تم التحقق!";
-            setTimeout(()=>{ saveSession(); unlockDashboard(); }, 500);
-        } catch (e) {
-            msg.style.color = "var(--danger)";
-            msg.innerText = "فشل التحقق أو تم الإلغاء";
-        }
-    }
+    // local storage for jobs & history (so UI persistent)
+    function loadLocalJobs(){ try{ return JSON.parse(localStorage.getItem('hyperion_jobs')||'{}') }catch(e){return{}} }
+    function saveLocalJobs(m){ try{ localStorage.setItem('hyperion_jobs', JSON.stringify(m)) }catch(e){} }
+    function addOrUpdateJobLocal(id,data){ const m=loadLocalJobs(); m[id]=Object.assign({},m[id]||{},data); m[id]._updated=Date.now(); saveLocalJobs(m) }
+    function removeLocalJob(id){ const m=loadLocalJobs(); delete m[id]; saveLocalJobs(m) }
 
-    function saveSession() {
-        localStorage.setItem('hyperion_session', 'active');
-        localStorage.setItem('login_time', Date.now());
-    }
+    function loadHistory(){ try{ return JSON.parse(localStorage.getItem('hyperion_history')||'[]') }catch(e){return[]} }
+    function saveHistory(a){ try{ localStorage.setItem('hyperion_history', JSON.stringify(a)) }catch(e){} }
+    function addToHistory(item){ const arr=loadHistory(); arr.unshift(item); if(arr.length>200) arr.length=200; saveHistory(arr) }
 
-    function unlockDashboard(instant = false) {
-        const screen = document.getElementById('login-screen');
-        const dash = document.getElementById('dashboard');
-        if (instant) screen.style.display = 'none';
-        else { screen.style.opacity = '0'; setTimeout(()=> screen.style.display = 'none', 500); }
-        dash.style.display = 'block';
-        setTimeout(()=> { dash.style.filter = "blur(0)"; dash.style.opacity = "1"; }, 100);
-        startInactivityTimer();
-    }
-
-    function logout() {
-        localStorage.removeItem('hyperion_session');
-        location.reload();
-    }
-
-    // ---------- 3) مؤقت الخمول ----------
-    let logoutTimer;
-    const TIMEOUT_DURATION = 25 * 60 * 1000;
-    function startInactivityTimer() {
-        resetTimer();
-        document.onmousemove = resetTimer; document.onkeypress = resetTimer; document.ontouchstart = resetTimer;
-    }
-    function resetTimer() { clearTimeout(logoutTimer); logoutTimer = setTimeout(logout, TIMEOUT_DURATION); }
-
-    // ---------- 4) WebSocket للـ real-time ----------
+    // WebSocket
     let ws = null;
-    const clientId = () => localStorage.getItem('hyperion_client_id') || generateUUID();
-    function connectWS() {
+    function connectWS(){
         const id = clientId();
-        try {
-            const proto = (location.protocol === "https:") ? "wss:" : "ws:";
+        try{
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${proto}//${location.host}/ws/downloads/${encodeURIComponent(id)}`);
-            ws.onopen = () => console.log("WS connected", id);
-            ws.onmessage = (ev) => {
-                try {
-                    const d = JSON.parse(ev.data);
-                    handleWS(d);
-                } catch(e) { console.log("WS msg parse err", e); }
+            ws.onopen = ()=> console.log('WS open', id);
+            ws.onmessage = ev => {
+                try{
+                    const msg = JSON.parse(ev.data);
+                    handleWS(msg);
+                }catch(e){ console.log('ws parse err', e) }
             };
-            ws.onclose = () => { console.log("WS closed, reconnect in 2s"); setTimeout(connectWS, 2000); };
-            ws.onerror = (e) => console.log("WS error", e);
-        } catch (e) {
-            console.warn("Cannot open ws", e);
-        }
+            ws.onclose = ()=> { console.log('WS closed — reconnecting'); setTimeout(connectWS,2000) };
+            ws.onerror = e => console.log('ws err', e);
+        }catch(e){ console.warn('ws open failed', e) }
     }
+    connectWS();
 
-    function handleWS(msg) {
-        // رسائل من الخادم: queued, started, progress, finished, error, status_response
-        console.log("WS:", msg);
-        if (!msg.event) return;
-        if (msg.event === "queued") {
-            addOrUpdateJobLocal(msg.job_id, { state: "queued", url: msg.url, progress: 0 });
-            refreshUI();
-        } else if (msg.event === "started") {
-            addOrUpdateJobLocal(msg.job_id, { state: "processing", progress: 0 });
-            refreshUI();
-        } else if (msg.event === "progress") {
-            addOrUpdateJobLocal(msg.job_id, { state: "processing", progress: msg.progress, speed: humanSize(msg.speed) + "/s", downloaded: msg.downloaded, total: msg.total });
-            refreshUI();
-        } else if (msg.event === "ydl_finished") {
-            // إشعار منتصف الطريق
-            addOrUpdateJobLocal(msg.job_id, { state: "ydl_finished" });
-            refreshUI();
-        } else if (msg.event === "finished") {
-            // msg.meta يحتوي معلومات الفيديو (title, id, uploader...)
+    // Handle WS messages
+    function handleWS(msg){
+        if(!msg || !msg.event) return;
+        if(msg.event === 'queued'){ addOrUpdateJobLocal(msg.job_id, { state:'queued', url: msg.url, progress:0 }); refreshUI(); }
+        else if(msg.event === 'started'){ addOrUpdateJobLocal(msg.job_id, { state:'processing', progress:0 }); refreshUI(); }
+        else if(msg.event === 'progress'){ addOrUpdateJobLocal(msg.job_id, { state:'processing', progress: msg.progress, speed: humanSize(msg.speed||0) + '/s', downloaded: msg.downloaded, total: msg.total }); refreshUI(); }
+        else if(msg.event === 'ydl_finished'){ addOrUpdateJobLocal(msg.job_id, { state:'ydl_finished' }); refreshUI(); }
+        else if(msg.event === 'finished'){
             const meta = msg.meta || {};
-            addOrUpdateJobLocal(msg.job_id, { state: "finished", progress: 100, meta: meta, finished_at: Date.now() });
-            // نضيف للسجل المحلي (history) — نحاول بناء اسم ملف متوقع من العنوان
-            const guessedFilename = safeFilename((meta.title || ("video_"+(meta.id||msg.job_id)))) + ".mp4";
-            addToHistory({ job_id: msg.job_id, title: meta.title || "video", uploader: meta.uploader||"", size: meta.filesize || 0, file: guessedFilename, ts: Date.now() });
+            addOrUpdateJobLocal(msg.job_id, { state:'finished', progress:100, meta: meta, filename: msg.filename });
+            // add to history (prefer filename if present)
+            const fname = msg.filename || (safeFilename(meta.title||('video_'+(meta.id||msg.job_id))) + '.mp4');
+            addToHistory({ job_id: msg.job_id, title: meta.title||fname, uploader: meta.uploader||'', size: meta.filesize||0, file: fname, ts: Date.now() });
             refreshUI();
-        } else if (msg.event === "error") {
-            addOrUpdateJobLocal(msg.job_id, { state: "error", error: msg.error });
-            refreshUI();
-        } else if (msg.event === "status_response") {
-            // يمكن معالجة طلبات الحالة إن طلبنا من الويب سوكيت
-            console.log("status_response", msg);
         }
+        else if(msg.event === 'error'){ addOrUpdateJobLocal(msg.job_id, { state:'error', error: msg.error }); refreshUI(); }
     }
 
-    function sendWS(obj) {
-        if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+    // API helper
+    async function api(path, method='GET', body=null){
+        const opts = { method, headers:{} };
+        if(body){ opts.headers['Content-Type']='application/json'; opts.body=JSON.stringify(body) }
+        const res = await fetch(path, opts);
+        return res;
     }
 
-    // ---------- 5) تفاعل مع الخادم: health, jobs, download ----------
-    async function refreshUI() {
+    // Health & jobs update
+    async function refreshUI(){
         updateStatusDisplay();
         await updateJobsFromServer();
         renderJobs();
         renderHistory();
     }
 
-    async function updateStatusDisplay() {
-        try {
-            const res = await fetch('/health');
-            if (!res.ok) { throw new Error("health failed"); }
+    async function updateStatusDisplay(){
+        try{
+            const res = await api('/health');
+            if(!res.ok) throw new Error('health failed');
             const j = await res.json();
-            document.getElementById('cpu').innerText = (j.cpu || 0) + "%";
-            document.getElementById('ram').innerText = (j.ram || 0) + "%";
-            document.getElementById('active-jobs').innerText = (j.downloads_in_queue !== undefined) ? j.downloads_in_queue : "0";
-            document.getElementById('status-text').innerText = j.ok ? "متصل ✅" : "غير متصل";
-        } catch (e) {
-            document.getElementById('status-text').innerText = "غير متصل ❌";
+            document.getElementById('cpu').innerText = (j.cpu||0) + '%';
+            document.getElementById('ram').innerText = (j.ram||0) + '%';
+            document.getElementById('active-jobs').innerText = (j.downloads_in_queue!==undefined)? j.downloads_in_queue : Object.keys(loadLocalJobs()).length;
+            document.getElementById('status-text').innerText = j.ok ? 'متصل ✅' : 'غير متصل';
+        }catch(e){
+            document.getElementById('status-text').innerText = 'غير متصل ❌';
         }
     }
 
-    // نجلب حالة المهام من /api/jobs (الخادم يعيد كائن jobs: { job_id: {...} })
-    let jobsMap = {}; // حالة محلية مرآة
-    async function updateJobsFromServer() {
-        try {
-            const res = await fetch('/api/jobs');
-            if (!res.ok) return;
+    async function updateJobsFromServer(){
+        try{
+            const res = await api('/api/jobs');
+            if(!res.ok) return;
             const j = await res.json();
-            // j.jobs هي خريطة job_id -> status
-            jobsMap = j.jobs || {};
-            // ندمجها مع الحالة المحلية (add/update)
-            for (const [jid, st] of Object.entries(jobsMap)) {
-                addOrUpdateJobLocal(jid, st);
+            const map = j.jobs || {};
+            // دمج
+            for(const [jid, st] of Object.entries(map)){
+                const local = loadLocalJobs()[jid] || {};
+                const merged = Object.assign({}, local, st);
+                addOrUpdateJobLocal(jid, merged);
             }
-        } catch (e) {
-            // تجاهل أخطاء الشبكة
-        }
+        }catch(e){}
     }
 
-    // إرسال طلب تنزيل إلى /api/download
-    async function runSearch() {
-        const btn = document.getElementById('search-btn');
-        const input = document.getElementById('query');
-        const urlOrQuery = input.value && input.value.trim();
-        if (!urlOrQuery) return;
-        btn.disabled = true; btn.innerText = "...";
-        try {
-            // نرسل JSON مع client_id لنضمن تلقي التحديثات
-            const payload = { url: urlOrQuery, client_id: clientId() };
-            const res = await fetch('/api/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            if (!res.ok) {
-                const txt = await res.text();
-                alert("فشل بدء التنزيل: " + txt);
-            } else {
-                const data = await res.json();
-                // الخادم يعيد job_id
-                // نضيف حالة محلية مبدئية
-                if (data.job_id) addOrUpdateJobLocal(data.job_id, { state: "queued", url: urlOrQuery, progress: 0 });
-                input.value = "";
-            }
-        } catch (e) {
-            alert("حدث خطأ عند الاتصال بالخادم.");
-            console.error(e);
-        } finally {
-            btn.disabled = false; btn.innerText = "بحث";
-            await refreshUI();
-        }
-    }
-
-    // ---------- 6) إدارة وعرض الـ jobs محلياً ----------
-    // نخزن حالة المهام مؤقتاً في localStorage لكي تبقى عبر إعادة تحميل الصفحة
-    function getLocalJobs() {
-        try { return JSON.parse(localStorage.getItem('hyperion_jobs')||'{}'); } catch(e){ return {}; }
-    }
-    function saveLocalJobs(m) { localStorage.setItem('hyperion_jobs', JSON.stringify(m)); }
-    function addOrUpdateJobLocal(job_id, data) {
-        const m = getLocalJobs();
-        m[job_id] = Object.assign({}, m[job_id] || {}, data);
-        m[job_id]._updated = Date.now();
-        saveLocalJobs(m);
-    }
-    function removeLocalJob(job_id) {
-        const m = getLocalJobs();
-        delete m[job_id];
-        saveLocalJobs(m);
-    }
-
-    function renderJobs() {
+    function renderJobs(){
         const container = document.getElementById('active-jobs-list');
-        const m = getLocalJobs();
-        const arr = Object.entries(m).sort((a,b)=> (b[1]._updated||0)-(a[1]._updated||0));
-        if (!arr.length) { container.innerHTML = "لا توجد مهام نشطة"; return; }
-        container.innerHTML = arr.map(([jid, info]) => {
+        const m = loadLocalJobs();
+        const arr = Object.entries(m).sort((a,b)=> (b[1]._updated||0) - (a[1]._updated||0));
+        if(!arr.length){ container.innerHTML = '<div style="color:var(--text-sub)">لا توجد مهام نشطة</div>'; return; }
+        container.innerHTML = arr.map(([jid, info])=>{
             const title = (info.meta && info.meta.title) ? info.meta.title : (info.url || jid);
-            const progress = info.progress !== undefined ? info.progress : (info.state === 'finished' ? 100 : 0);
-            const speed = info.speed || "";
-            const extra = info.state === 'error' ? `<div style="color:var(--danger); margin-top:6px;">خطأ: ${escapeHtml(info.error||'غير معروف')}</div>` : '';
-            const playBtn = (info.state === 'finished' && info.meta) ? `<button class="btn-blue" style="width:auto; padding:8px 12px; margin-top:8px;" onclick="playFromJob('${encodeURIComponent(jid)}')">تشغيل</button>` : '';
-            return `
-                <div class="job-card">
-                    <div class="job-info"><span>${escapeHtml(title)}</span><span style="color:var(--success)">${speed}</span></div>
-                    <div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div>
-                    ${playBtn}
-                    ${extra}
-                </div>
-            `;
+            const progress = info.progress!==undefined ? info.progress : (info.state==='finished'?100:0);
+            const speed = info.speed || '';
+            const err = info.state==='error' ? `<div style="color:var(--danger);margin-top:6px">خطأ: ${escapeHtml(info.error||'غير معروف')}</div>` : '';
+            const playBtn = (info.state==='finished' && (info.filename || (info.meta && info.meta.id))) ? `<button class="btn-blue" style="margin-top:8px;padding:8px 12px" onclick="playFromJob('${encodeURIComponent(jid)}')">تشغيل</button>` : '';
+            return `<div class="job-card">
+                <div class="job-info"><span>${escapeHtml(title)}</span><span style="color:var(--text-sub)">${speed}</span></div>
+                <div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div>
+                ${playBtn}
+                ${err}
+            </div>`;
         }).join('');
     }
 
-    // تشغيل الفيديو من job: نحاول بناء اسم الملف المتوقع من title (قد تحتاج تعديل outtmpl في server ليتطابق)
-    function playFromJob(encodedJobId) {
-        const jid = decodeURIComponent(encodedJobId);
-        const m = getLocalJobs();
-        const info = m[jid];
-        if (!info || !info.meta) { alert("لا توجد بيانات التشغيل متاحة لهذه المهمة."); return; }
-        const title = info.meta.title || ('video_'+(info.meta.id||jid));
-        const guessed = safeFilename(title) + ".mp4"; // توقع اسم ملف بصيغة mp4
-        playMedia(guessed, title);
-    }
-
-    // ---------- 7) السجل (History) محلي ----------
-    function getHistory() {
-        try { return JSON.parse(localStorage.getItem('hyperion_history')||'[]'); } catch(e){ return []; }
-    }
-    function saveHistory(arr) { localStorage.setItem('hyperion_history', JSON.stringify(arr)); }
-    function addToHistory(item) {
-        const arr = getHistory();
-        arr.unshift(item);
-        // حافظ على حدود (مثلاً آخر 100)
-        if (arr.length > 200) arr.length = 200;
-        saveHistory(arr);
-    }
-    function renderHistory() {
-        const arr = getHistory();
+    function renderHistory(){
+        // نعرض سجل محلي أولاً
         const container = document.getElementById('history-list');
-        if (!arr.length) { container.innerHTML = "<div style='color:var(--text-sub)'>لا توجد عناصر في الأرشيف بعد</div>"; return; }
-        container.innerHTML = arr.map(i => `
-            <div class="history-item">
-                <div style="flex:1">
-                    <b>${escapeHtml(i.title.substring(0,60))}</b><br>
-                    <small style="color:var(--text-sub)">${i.uploader || ''} · ${humanSize(i.size||0)}</small>
+        const arr = loadHistory();
+        if(!arr.length){ container.innerHTML = '<div style="color:var(--text-sub)">لا توجد عناصر في الأرشيف بعد</div>'; return; }
+        container.innerHTML = arr.map(i=>{
+            const title = escapeHtml((i.title||i.file).slice(0,60));
+            const file = encodeURIComponent(i.file);
+            return `<div class="history-item">
+                <div style="flex:1"><b>${title}</b><br><small style="color:var(--text-sub)">${escapeHtml(i.uploader||'')} · ${humanSize(i.size||0)}</small></div>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <button class="btn-blue" style="padding:8px 12px" onclick="playMedia('${file}','${escapeHtml(i.title||i.file)}')">تشغيل</button>
+                    <a class="download-link" href="/stream/${file}" target="_blank">تحميل</a>
                 </div>
-                <div style="display:flex; gap:8px; align-items:center">
-                    <button class="btn-blue" style="width:auto; padding:8px 12px;" onclick="playMedia('${encodeURIComponent(i.file)}','${escapeHtml(i.title)}')">تشغيل</button>
-                    <a class="download-link" href="/stream/${encodeURIComponent(i.file)}" target="_blank">تحميل</a>
-                </div>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
     }
 
-    // ---------- 8) تشغيل الوسائط (modal) ----------
-    function playMedia(filePath, title) {
+    // Play controls
+    function playFromJob(encJobId){
+        const jid = decodeURIComponent(encJobId);
+        const info = loadLocalJobs()[jid];
+        if(!info) return alert('لا توجد بيانات لهذه المهمة');
+        const fname = info.filename || (info.meta && info.meta.id ? (info.meta.id + '.mp4') : null);
+        const title = (info.meta && info.meta.title) ? info.meta.title : ('video_'+jid);
+        if(!fname) return alert('اسم الملف غير متوفر بعد');
+        playMedia(encodeURIComponent(fname), title);
+    }
+
+    function playMedia(filePath, title){
         const modal = document.getElementById('player-modal');
         const container = document.getElementById('player-container');
+        document.getElementById('player-title').innerText = title || decodeURIComponent(filePath);
+        container.innerHTML = `<video controls autoplay><source src="/stream/${filePath}" type="video/mp4">المتصفح لا يدعم الفيديو</video>
+            <div style="margin-top:8px;display:flex;gap:8px"><a class="download-link" href="/stream/${filePath}" target="_blank">فتح / تحميل</a>
+            <button class="btn-red" onclick="document.getElementById('player-modal').style.display='none'">إغلاق</button></div>`;
         modal.style.display = 'block';
-        // نعرض فيديو HTML5 مع src إلى /stream/{filePath} (الخادم يدعم Range)
-        container.innerHTML = `
-            <div style="font-weight:700; margin-bottom:10px;">${title || decodeURIComponent(filePath)}</div>
-            <video controls autoplay style="width:100%; border-radius:10px;">
-                <source src="/stream/${filePath}" type="video/mp4">
-                متصفحك لا يدعم تشغيل الفيديو.
-            </video>
-            <div style="margin-top:8px; display:flex; gap:8px;">
-                <a class="download-link" href="/stream/${filePath}" target="_blank">فتح في نافذة جديدة</a>
-                <button class="btn-red" style="width:auto; padding:6px 10px;" onclick="document.getElementById('player-modal').style.display='none'">إغلاق</button>
-            </div>
-        `;
     }
 
-    // ---------- 9) أفعال إدارية (مؤقت) ----------
-    function serverAction(act) {
-        if (act === 'stop') {
-            alert('زر الإيقاف موجه للواجهة فقط. إذا أردت إيقاف الخادم فعليًا استخدم واجهة التحكم في السيرفر أو إعادة تشغيل الحاوية.');
+    // Actions: download / search / clear cache / stop server
+    async function runSearch(){
+        const input = document.getElementById('query');
+        const q = (input.value||'').trim();
+        if(!q) return;
+        const btn = document.getElementById('search-btn');
+        btn.disabled = true; btn.innerText = '...';
+        try{
+            const payload = { url: q, client_id: clientId() };
+            const res = await api('/api/download','POST',payload);
+            if(!res.ok){ const txt = await res.text(); alert('فشل بدء التنزيل: '+txt); }
+            else {
+                const data = await res.json();
+                if(data.job_id) addOrUpdateJobLocal(data.job_id,{ state:'queued', url:q, progress:0});
+                input.value = '';
+            }
+        }catch(e){
+            alert('خطأ عند الاتصال بالخادم');
+            console.error(e);
+        }finally{
+            btn.disabled=false; btn.innerText='تحميل';
+            setTimeout(refreshUI,800);
         }
     }
 
-    // ---------- 10) وظائف مساعدة ----------
-    function generateUUID() {
-        // UUID بسيط
-        return 'xxxxxxxxyxxx'.replace(/[xy]/g, function(c) {
-            const r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
-            return v.toString(16);
-        }) + Date.now().toString(36);
-    }
-    function safeFilename(s) {
-        // إزالة أحرف غير آمنة لتوقع اسم ملف
-        return (s || '').replace(/[^0-9a-zA-Zء-ي \-_\.]/g, '').trim().replace(/\s+/g, '_').substring(0,180);
-    }
-    function escapeHtml(str) {
-        if (!str) return '';
-        return String(str).replace(/[&<>"'`=\/]/g, function(s) {
-            return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;","/":"&#x2F;","`":"&#x60;","=":"&#x3D;"}[s];
-        });
-    }
-    function humanSize(n) {
-        if (!n || n <= 0) return "0 B";
-        const units = ["B","KB","MB","GB","TB"];
-        let i = 0;
-        while (n >= 1024 && i < units.length-1) { n /= 1024; i++; }
-        return `${n.toFixed(2)} ${units[i]}`;
+    async function clearCache(){
+        try{
+            const res = await api('/api/clear_cache','POST');
+            if(res.ok) alert('تم تنظيف الكاش'); else alert('فشل تنظيف الكاش');
+        }catch(e){ alert('فشل تنظيف الكاش'); }
     }
 
-    // ---------- 11) تكامل دوري ----------
-    setInterval(refreshUI, 2000);
-    setInterval(renderHistory, 5000);
+    async function stopServer(){
+        if(!confirm('هل أنت متأكد من إيقاف الخادم؟')) return;
+        try{
+            const res = await api('/api/stop','POST');
+            if(res.ok) alert('طلب الإيقاف أُرسل'); else alert('فشل إرسال طلب الإيقاف');
+        }catch(e){ alert('فشل إرسال طلب الإيقاف'); }
+    }
+
+    // login/session
+    function attemptLogin(){
+        const u = document.getElementById('username').value;
+        const p = document.getElementById('password').value;
+        const msg = document.getElementById('login-msg');
+        if(u==='Admin' && p==='admin'){ localStorage.setItem('hyperion_session','active'); unlockDashboard(); } else { msg.innerText='بيانات الدخول غير صحيحة' }
+    }
+    function triggerBiometric(){ alert('ميزة تجريبية — WebAuthn تحتاج backend'); }
+    function logout(){ localStorage.removeItem('hyperion_session'); location.reload(); }
+
+    function unlockDashboard(instant=false){
+        const screen = document.getElementById('login-screen');
+        const dash = document.getElementById('dashboard');
+        if(instant) screen.style.display='none'; else { screen.style.opacity='0'; setTimeout(()=>screen.style.display='none',400) }
+        dash.style.display='block'; setTimeout(()=>{ dash.style.opacity=1; dash.style.filter='none' },120);
+    }
+
+    // inactivity auto logout (25 min)
+    let logoutTimer; const TIMEOUT = 25*60*1000;
+    function startInactivity(){ resetTimer(); document.onmousemove=resetTimer; document.onkeypress=resetTimer; document.ontouchstart=resetTimer; }
+    function resetTimer(){ clearTimeout(logoutTimer); logoutTimer=setTimeout(()=>{ localStorage.removeItem('hyperion_session'); location.reload(); }, TIMEOUT) }
+
+    // initial load
+    window.onload = function(){
+        if(localStorage.getItem('hyperion_session')==='active') unlockDashboard(true);
+        startInactivity();
+        connectWS();
+        setInterval(refreshUI,2500);
+        setInterval(renderHistory,5000);
+        refreshUI();
+    };
 
     </script>
 </body>
